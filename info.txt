@@ -1,0 +1,4 @@
+name = Object Possession
+author = NLferdiNL
+description = Become items on the map of any size.
+tags = Tool
