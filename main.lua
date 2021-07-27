@@ -8,8 +8,7 @@
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
 
--- TODO: Camera movement
--- TODO: Fix nil possession bug
+-- TODO: Fix large scale objects (might be related to world gone dynamic) ignoring camera rotation?
 
 local currentBody = nil
 local currentLookAtBody = nil
