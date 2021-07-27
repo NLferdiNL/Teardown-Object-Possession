@@ -16,12 +16,14 @@ local currentShotCooldown = 0
 local maxShotCooldown = 0.5
 local cameraTransform = nil
 
+local cameraSpeed = 10
 local minCameraDistance = 5
 local maxCameraDistance = 7
 
-local mouseSensitivity = 0.5
+local mouseXSensitivity = 0.15
+local mouseYSensitivity = 0.3
 
-local movementSpeed = 0.5
+local movementSpeed = 0.75
 local jumpStrength = 5
 
 function init()
@@ -52,7 +54,7 @@ function tick(dt)
 			ReturnToPlayer()
 		else
 			movePlayerAway()
-			cameraLogic()
+			cameraLogic(dt)
 		
 			if InputPressed("r") then
 				ReturnToPlayer()
@@ -115,7 +117,7 @@ end
 
 -- Action functions
 
-function cameraLogic()
+function cameraLogic(dt)
 	if currentBody == nil or currentBody == 0 then
 		return
 	end
@@ -145,20 +147,21 @@ function cameraLogic()
 	--cameraPos = VecAdd(cameraPos, VecScale(directionToBody, cameraExtraLength))
 	
 	local xMovement = -InputValue("mousedx")
-	local yMovement = -InputValue("mousedy")
+	local yMovement = InputValue("mousedy")
 	
 	if xMovement ~= 0 or yMovement ~= 0 then
-		local mouseMovementVec = Vec(xMovement, yMovement, 0)
+		local mouseMovementVec = Vec(xMovement * mouseXSensitivity, yMovement * mouseYSensitivity, 0)
 		
 		local worldMouseMovementVec = VecDir(cameraTransform.pos, TransformToParentPoint(cameraTransform, mouseMovementVec))
 		
-		cameraPos = VecAdd(cameraPos, VecScale(worldMouseMovementVec, mouseSensitivity))
+		cameraPos = VecAdd(cameraPos, worldMouseMovementVec)
 	end
 	
-	local maxHeightDiff = cameraExtraLength
+	local maxHeightDiff = 5
+	local minHeightDiff = 2.5
 	
-	if cameraPos[2] < objectCenter[2] then
-		cameraPos[2] = objectCenter[2]
+	if cameraPos[2] < objectCenter[2] - minHeightDiff then
+		cameraPos[2] = objectCenter[2] - minHeightDiff
 	elseif cameraPos[2] > objectCenter[2] + maxHeightDiff then
 		cameraPos[2] = objectCenter[2] + maxHeightDiff
 	end
@@ -175,6 +178,8 @@ function cameraLogic()
 		cameraPos = VecAdd(hitPoint, VecScale(VecDir(cameraPos, origin), 2))
 	end]]--
 	
+	cameraPos = VecLerp(cameraPos, cameraTransform.pos, dt * cameraSpeed)
+	
 	local cameraRot = QuatLookAt(cameraPos, objectCenter)
 	
 	cameraTransform.pos = cameraPos
@@ -188,6 +193,21 @@ function movePlayerAway()
 end
 
 function ReturnToPlayer()
+	local currentBodyTransform = GetBodyTransform(currentBody)
+	
+	local origin = currentBodyTransform.pos
+
+	local direction = VecDir(origin, cameraTransform.pos)
+	
+	local maxDistance =  VecDist(origin, cameraTransform.pos)
+	
+	QueryRejectBody(currentBody)
+	
+	local hit, hitPoint = raycast(origin, direction, maxDistance)
+	
+	if hit then
+		cameraTransform.pos = hitPoint
+	end
 	if cameraTransform.pos[2] > 900 then
 		RespawnPlayer()
 	else
