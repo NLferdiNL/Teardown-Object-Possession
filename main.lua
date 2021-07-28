@@ -9,6 +9,7 @@ toolName = "objectpossession"
 toolReadableName = "Object Possession"
 
 -- TODO: Fix large scale objects (might be related to world gone dynamic) ignoring camera rotation?
+--		 This seems to only happen on broken bits of world geo?
 
 local currentBody = nil
 local currentLookAtBody = nil
@@ -16,12 +17,14 @@ local currentShotCooldown = 0
 local maxShotCooldown = 0.5
 local cameraTransform = nil
 
-local cameraSpeed = 10
-local minCameraDistance = 5
-local maxCameraDistance = 7
+--local lastObjectCenter = nil
 
-local mouseXSensitivity = 0.15
-local mouseYSensitivity = 0.3
+local cameraSpeed = 10
+local minCameraDistance = 0 --5
+local maxCameraDistance = 5 --7
+
+local mouseXSensitivity = 1.5
+local mouseYSensitivity = 3.0
 
 local movementSpeed = 0.75
 local jumpStrength = 5
@@ -121,28 +124,33 @@ function cameraLogic(dt)
 	if currentBody == nil or currentBody == 0 then
 		return
 	end
-
+	
 	local cameraPos = VecCopy(cameraTransform.pos)
 	local currentBodyTransform = GetBodyTransform(currentBody)
 	
-	local objectCenter = TransformToParentPoint(currentBodyTransform, GetBodyCenterOfMass(currentBody)) --VecLerp(objectMin, objectMax, 0.5)
+	local objectMin, objectMax = GetBodyBounds(currentBody)
+	
+	local localFocusPoint = GetBodyCenterOfMass(currentBody)
+	
+	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint) --VecLerp(objectMin, objectMax, 0.5)
+	
+	--local objectCenterRaised = VecAdd(Vec(0, 1, 0), objectCenter)
+	
+	--local objectCenterLerped = VecLerp(objectCenterRaised, lastObjectCenter, cameraSpeed * dt)
 	
 	local directionToBody = VecDir(cameraPos, objectCenter)
 	
 	local distanceToBody = VecDist(cameraPos, objectCenter)
 	
-	local objectMin, objectMax = GetBodyBounds(currentBody)
-	
 	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin))
 	
-	local minCamDist = minCameraDistance + cameraExtraLength
-	local maxCamDist = maxCameraDistance + cameraExtraLength
+	--[[local currCamDist = currCameraDistance + cameraExtraLength
 	
-	if distanceToBody > maxCamDist  then
-		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - maxCamDist))
-	elseif distanceToBody < minCamDist then
-		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - minCamDist))
-	end
+	if distanceToBody > currCamDist  then
+		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - currCamDist))
+	elseif distanceToBody < currCamDist then
+		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - currCamDist))
+	end]]--
 	
 	--cameraPos = VecAdd(cameraPos, VecScale(directionToBody, cameraExtraLength))
 	
@@ -152,19 +160,19 @@ function cameraLogic(dt)
 	if xMovement ~= 0 or yMovement ~= 0 then
 		local mouseMovementVec = Vec(xMovement * mouseXSensitivity, yMovement * mouseYSensitivity, 0)
 		
-		local worldMouseMovementVec = VecDir(cameraTransform.pos, TransformToParentPoint(cameraTransform, mouseMovementVec))
+		local worldMouseMovementVec = TransformToParentVec(cameraTransform, mouseMovementVec)
 		
 		cameraPos = VecAdd(cameraPos, worldMouseMovementVec)
 	end
 	
-	local maxHeightDiff = 5
-	local minHeightDiff = 2.5
+	--[[local maxHeightDiff = cameraExtraLength / 2
+	local minHeightDiff = 0.25
 	
 	if cameraPos[2] < objectCenter[2] - minHeightDiff then
 		cameraPos[2] = objectCenter[2] - minHeightDiff
 	elseif cameraPos[2] > objectCenter[2] + maxHeightDiff then
 		cameraPos[2] = objectCenter[2] + maxHeightDiff
-	end
+	end]]--
 	
 	--[[QueryRejectBody(currentBody)
 	
@@ -172,13 +180,33 @@ function cameraLogic(dt)
 	local direction = VecDir(origin, cameraPos)
 	local maxDistance = VecDist(cameraPos, objectCenter)
 	
-	local hit, hitPoint = raycast(origin, direction, maxDistance)
+	local hit, hitPoint = raycast(origin, direction, maxDistance, true)
 	
 	if hit then
-		cameraPos = VecAdd(hitPoint, VecScale(VecDir(cameraPos, origin), 2))
+		local wallOffset = VecScale(VecDir(hitPoint, origin), 2)
+		cameraPos = VecAdd(hitPoint, wallOffset)
+		DrawBodyOutline(currentBody, 1)
+	else
+		local minCamDist = minCameraDistance
+		local maxCamDist = maxCameraDistance + cameraExtraLength
+		
+		if distanceToBody > maxCamDist  then
+			cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - maxCamDist))
+		elseif distanceToBody < minCamDist then
+			cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - minCamDist))
+		end
 	end]]--
 	
-	cameraPos = VecLerp(cameraPos, cameraTransform.pos, dt * cameraSpeed)
+	local minCamDist = minCameraDistance
+	local maxCamDist = maxCameraDistance + cameraExtraLength
+	
+	if distanceToBody > maxCamDist  then
+		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - maxCamDist))
+	elseif distanceToBody < minCamDist then
+		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - minCamDist))
+	end
+	
+	cameraPos = VecLerp(cameraTransform.pos, cameraPos, dt * cameraSpeed)
 	
 	local cameraRot = QuatLookAt(cameraPos, objectCenter)
 	
@@ -186,6 +214,8 @@ function cameraLogic(dt)
 	cameraTransform.rot = cameraRot
 	
 	SetCameraTransform(cameraTransform)
+	
+	--lastObjectCenter = objectCenter
 end
 
 function movePlayerAway()
@@ -227,6 +257,14 @@ function takeOverLookAt()
 	currentLookAtBody = nil
 	
 	cameraTransform = GetCameraTransform()
+	
+	--local objectMin, objectMax = GetBodyBounds(currentBody)
+	
+	--local localFocusPoint = GetBodyCenterOfMass(currentBody)
+	
+	--local objectCenter = VecLerp(objectMin, objectMax, 0.5) --VecAdd(Vec(0, 1, 0), TransformToParentPoint(currentBodyTransform, localFocusPoint))
+	
+	--lastObjectCenter = objectCenter
 end
 
 function possessionLogic()
