@@ -23,8 +23,8 @@ local cameraSpeed = 10
 local minCameraDistance = 0 --5
 local maxCameraDistance = 5 --7
 
-local mouseXSensitivity = 1.5
-local mouseYSensitivity = 3.0
+local mouseXSensitivity = 0.75
+local mouseYSensitivity = 0.75
 
 local movementSpeed = 0.75
 local jumpStrength = 5
@@ -39,6 +39,8 @@ end
 
 function tick(dt)
 	menu_tick(dt)
+	
+	DebugWatch("poss", currentBody)
 	
 	if not isHoldingTool() and currentBody == nil then
 		return
@@ -165,14 +167,13 @@ function cameraLogic(dt)
 		cameraPos = VecAdd(cameraPos, worldMouseMovementVec)
 	end
 	
-	--[[local maxHeightDiff = cameraExtraLength / 2
-	local minHeightDiff = 0.25
+	local maxHeightDiff = maxCameraDistance * 0.9
 	
-	if cameraPos[2] < objectCenter[2] - minHeightDiff then
-		cameraPos[2] = objectCenter[2] - minHeightDiff
+	if cameraPos[2] < objectCenter[2] - maxHeightDiff then
+		cameraPos[2] = objectCenter[2] - maxHeightDiff
 	elseif cameraPos[2] > objectCenter[2] + maxHeightDiff then
 		cameraPos[2] = objectCenter[2] + maxHeightDiff
-	end]]--
+	end
 	
 	--[[QueryRejectBody(currentBody)
 	
@@ -272,6 +273,8 @@ function possessionLogic()
 		return true
 	end
 	
+	DebugWatch("cam", currentBody)
+	
 	local xMovement = 0
 	local yMovement = 0
 	local zMovement = 0
@@ -308,6 +311,7 @@ function possessionLogic()
 	tempLookAt[2] = cameraTransform.pos[2]
 	local tempTransform = Transform(cameraTransform.pos, QuatLookAt(cameraTransform.pos, tempLookAt))
 	
+	-- TODO: Fix the issue related to certain broken voxels HERE
 	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
 	
 	local direction = VecDir(cameraTransform.pos, cameraRelatedMovement)
@@ -338,9 +342,12 @@ function aimLogic()
 	if hit ~= nil then
 		local hitBody = GetShapeBody(shape)
 		
+		DebugWatch("body", hitBody)
+		
 		if IsBodyDynamic(hitBody) then
 			currentLookAtBody = GetShapeBody(shape)
-		else currentLookAtBody = nil
+		else 
+			currentLookAtBody = nil
 		end
 	else
 		currentLookAtBody = nil
