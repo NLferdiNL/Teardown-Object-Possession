@@ -22,8 +22,8 @@ local cameraTransform = nil
 local lastObjectCenter = nil
 
 local cameraSpeed = 20
-local minCameraDistance = 0 --5
-local maxCameraDistance = 5 --7
+local minCameraDistance = 0
+local maxCameraDistance = 5
 
 local mouseXSensitivity = 0.1
 local mouseYSensitivity = 0.1
@@ -134,10 +134,8 @@ function cameraLogic(dt)
 	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
-	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint) --VecLerp(objectMin, objectMax, 0.5)
-	
-	--local objectCenterRaised = VecAdd(Vec(0, 1, 0), objectCenter)
-	
+	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
+
 	local objectCenterLerped = VecLerp(objectCenterRaised, lastObjectCenter, cameraSpeed * dt)
 	
 	local directionToBody = VecDir(cameraPos, objectCenter)
@@ -145,16 +143,6 @@ function cameraLogic(dt)
 	local distanceToBody = VecDist(cameraPos, objectCenter)
 	
 	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin))
-	
-	--[[local currCamDist = currCameraDistance + cameraExtraLength
-	
-	if distanceToBody > currCamDist  then
-		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - currCamDist))
-	elseif distanceToBody < currCamDist then
-		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - currCamDist))
-	end]]--
-	
-	--cameraPos = VecAdd(cameraPos, VecScale(directionToBody, cameraExtraLength))
 	
 	local xMovement = -InputValue("mousedx")
 	local yMovement = InputValue("mousedy")
@@ -184,6 +172,8 @@ function cameraLogic(dt)
 		cameraPos = VecAdd(cameraPos, worldMouseMovementVec)
 	end
 	
+	 --Find voxels between camera and object and move closer to object to prevent
+	 -- the object from being covered behind walls. Still kinda jittery.
 	--[[QueryRejectBody(currentBody)
 	
 	local origin = currentBodyTransform.pos
@@ -268,11 +258,9 @@ function takeOverLookAt()
 	
 	cameraTransform = GetCameraTransform()
 	
-	--local objectMin, objectMax = GetBodyBounds(currentBody)
-	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
-	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint) -- VecLerp(objectMin, objectMax, 0.5)
+	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
 	
 	lastObjectCenter = objectCenter
 end
@@ -318,8 +306,10 @@ function possessionLogic()
 	
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
 	
-	local tempLookAt = VecCopy(objectCenter) --VecCopy(currentBodyTransform.pos)
+	local tempLookAt = VecCopy(objectCenter)
+	
 	tempLookAt[2] = cameraTransform.pos[2]
+	
 	local tempTransform = Transform(cameraTransform.pos, QuatLookAt(cameraTransform.pos, tempLookAt))
 	
 	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
@@ -346,7 +336,6 @@ function aimLogic()
 	
 	local maxDistance = 10
 	
-	--QueryRequire("physical dynamic")
 	local hit, hitPoint, distance, normal, shape = raycast(origin, direction, maxDistance)
 	
 	if hit ~= nil then
