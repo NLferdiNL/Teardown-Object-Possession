@@ -8,8 +8,10 @@
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
 
--- TODO: Fix large scale objects (might be related to world gone dynamic) ignoring camera rotation?
---		 This seems to only happen on broken bits of world geo?
+-- TODO: Make orbit camera, instead of chase.
+
+-- For those inspecting the code,
+-- I am very sorry.
 
 local currentBody = nil
 local currentLookAtBody = nil
@@ -17,14 +19,14 @@ local currentShotCooldown = 0
 local maxShotCooldown = 0.5
 local cameraTransform = nil
 
---local lastObjectCenter = nil
+local lastObjectCenter = nil
 
-local cameraSpeed = 10
+local cameraSpeed = 20
 local minCameraDistance = 0 --5
 local maxCameraDistance = 5 --7
 
-local mouseXSensitivity = 0.75
-local mouseYSensitivity = 0.75
+local mouseXSensitivity = 0.1
+local mouseYSensitivity = 0.1
 
 local movementSpeed = 0.75
 local jumpStrength = 5
@@ -39,8 +41,6 @@ end
 
 function tick(dt)
 	menu_tick(dt)
-	
-	DebugWatch("poss", currentBody)
 	
 	if not isHoldingTool() and currentBody == nil then
 		return
@@ -138,7 +138,7 @@ function cameraLogic(dt)
 	
 	--local objectCenterRaised = VecAdd(Vec(0, 1, 0), objectCenter)
 	
-	--local objectCenterLerped = VecLerp(objectCenterRaised, lastObjectCenter, cameraSpeed * dt)
+	local objectCenterLerped = VecLerp(objectCenterRaised, lastObjectCenter, cameraSpeed * dt)
 	
 	local directionToBody = VecDir(cameraPos, objectCenter)
 	
@@ -159,20 +159,29 @@ function cameraLogic(dt)
 	local xMovement = -InputValue("mousedx")
 	local yMovement = InputValue("mousedy")
 	
+	local minHeightDiff = 0
+	local maxHeightDiff = maxCameraDistance * 0.75
+	
+	if cameraPos[2] < objectCenter[2] - minHeightDiff then
+		cameraPos[2] = objectCenter[2] - minHeightDiff
+		
+		if yMovement < 0 then
+			yMovement = 0
+		end
+	elseif cameraPos[2] > objectCenter[2] + maxHeightDiff then
+		cameraPos[2] = objectCenter[2] + maxHeightDiff
+		
+		if yMovement > 0 then
+			yMovement = 0
+		end
+	end
+	
 	if xMovement ~= 0 or yMovement ~= 0 then
 		local mouseMovementVec = Vec(xMovement * mouseXSensitivity, yMovement * mouseYSensitivity, 0)
 		
 		local worldMouseMovementVec = TransformToParentVec(cameraTransform, mouseMovementVec)
 		
 		cameraPos = VecAdd(cameraPos, worldMouseMovementVec)
-	end
-	
-	local maxHeightDiff = maxCameraDistance * 0.9
-	
-	if cameraPos[2] < objectCenter[2] - maxHeightDiff then
-		cameraPos[2] = objectCenter[2] - maxHeightDiff
-	elseif cameraPos[2] > objectCenter[2] + maxHeightDiff then
-		cameraPos[2] = objectCenter[2] + maxHeightDiff
 	end
 	
 	--[[QueryRejectBody(currentBody)
@@ -216,7 +225,7 @@ function cameraLogic(dt)
 	
 	SetCameraTransform(cameraTransform)
 	
-	--lastObjectCenter = objectCenter
+	lastObjectCenter = objectCenter
 end
 
 function movePlayerAway()
@@ -261,19 +270,17 @@ function takeOverLookAt()
 	
 	--local objectMin, objectMax = GetBodyBounds(currentBody)
 	
-	--local localFocusPoint = GetBodyCenterOfMass(currentBody)
+	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
-	--local objectCenter = VecLerp(objectMin, objectMax, 0.5) --VecAdd(Vec(0, 1, 0), TransformToParentPoint(currentBodyTransform, localFocusPoint))
+	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint) -- VecLerp(objectMin, objectMax, 0.5)
 	
-	--lastObjectCenter = objectCenter
+	lastObjectCenter = objectCenter
 end
 
 function possessionLogic()
 	if currentBody == nil or currentBody == 0 or GetBodyMass(currentBody) <= 0 then
 		return true
 	end
-	
-	DebugWatch("cam", currentBody)
 	
 	local xMovement = 0
 	local yMovement = 0
@@ -307,11 +314,14 @@ function possessionLogic()
 	
 	local currentBodyTransform = GetBodyTransform(currentBody)
 	
-	local tempLookAt = VecCopy(currentBodyTransform.pos)
+	local localFocusPoint = GetBodyCenterOfMass(currentBody)
+	
+	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
+	
+	local tempLookAt = VecCopy(objectCenter) --VecCopy(currentBodyTransform.pos)
 	tempLookAt[2] = cameraTransform.pos[2]
 	local tempTransform = Transform(cameraTransform.pos, QuatLookAt(cameraTransform.pos, tempLookAt))
 	
-	-- TODO: Fix the issue related to certain broken voxels HERE
 	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
 	
 	local direction = VecDir(cameraTransform.pos, cameraRelatedMovement)
@@ -341,8 +351,6 @@ function aimLogic()
 	
 	if hit ~= nil then
 		local hitBody = GetShapeBody(shape)
-		
-		DebugWatch("body", hitBody)
 		
 		if IsBodyDynamic(hitBody) then
 			currentLookAtBody = GetShapeBody(shape)
