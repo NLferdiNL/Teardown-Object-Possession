@@ -63,7 +63,7 @@ function tick(dt)
 			movePlayerAway()
 			cameraLogic(dt)
 		
-			if InputPressed("r") then
+			if InputPressed(binds["Return_To_Player"]) then
 				ReturnToPlayer()
 			end
 		end
@@ -88,10 +88,17 @@ end
 -- UI Functions (excludes sound specific functions)
 
 function drawUI(dt)
-	if not isHoldingTool() then
+	if currentBody == nil or currentBody == 0 then
 		return
 	end
 	
+	UiPush()
+		UiAlign("center bottom")
+		UiTranslate(UiWidth() * 0.5, UiHeight())
+		UiFont("regular.ttf", 26)
+		UiTextShadow(0, 0, 0, 0.5, 2.0)
+		UiText("Press [" .. binds["Return_To_Player"] .. "] to return to player.")
+	UiPop()
 end
 
 function cooldownLogic(dt)

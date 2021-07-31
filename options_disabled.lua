@@ -1,7 +1,7 @@
 #include "scripts/savedata.lua"
 #include "scripts/textbox.lua"
 
-local modname = "Item Cannon"
+local modname = "Item Possession"
 
 function init()
 	saveFileInit()

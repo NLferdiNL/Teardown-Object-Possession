@@ -4,18 +4,21 @@
 #include "scripts/textbox.lua"
 #include "scripts/utils.lua"
 
--- TODO: Add new settings to menu open actions
+local menuEnabled = false
 
 binds = {
+	Return_To_Player = "R",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
 local bindBackup = deepcopy(binds)
 
 local bindOrder = {
+	Return_To_Player = "R",
 }
 		
 local bindNames = {
+	Return_To_Player = "Return To Player",
 	Open_Menu = "Open Menu",
 }
 
@@ -34,7 +37,7 @@ function menu_init()
 end
 
 function menu_tick(dt)
-	if InputPressed(binds["Open_Menu"]) and GetString("game.player.tool") == toolName then
+	if InputPressed(binds["Open_Menu"]) and GetString("game.player.tool") == toolName and menuEnabled then
 		menuOpened = not menuOpened
 		
 		if not menuOpened then
@@ -65,7 +68,7 @@ function menu_tick(dt)
 	end
 	
 	if isMenuOpen() then
-		checkMouseScroll()
+	
 	end
 end
 
