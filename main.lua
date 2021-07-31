@@ -19,6 +19,8 @@ local currentShotCooldown = 0
 local maxShotCooldown = 0.5
 local cameraTransform = nil
 
+local maxPossessDistance = 15
+
 local lastObjectCenter = nil
 
 local cameraSpeed = 20
@@ -333,10 +335,8 @@ function aimLogic()
 	
 	local origin = cameraTransform.pos
 	local direction = VecDir(origin, TransformToParentPoint(cameraTransform, Vec(0, 0, -1)))
-	
-	local maxDistance = 10
-	
-	local hit, hitPoint, distance, normal, shape = raycast(origin, direction, maxDistance)
+
+	local hit, hitPoint, distance, normal, shape = raycast(origin, direction, maxPossessDistance)
 	
 	if hit ~= nil then
 		local hitBody = GetShapeBody(shape)
