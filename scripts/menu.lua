@@ -7,7 +7,9 @@
 local menuEnabled = false
 
 binds = {
-	Return_To_Player = "R",
+	Return_To_Player = "r",
+	Toggle_Invincibility = "c",
+	Toggle_Walk_Mode = "shift",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
@@ -15,10 +17,14 @@ local bindBackup = deepcopy(binds)
 
 local bindOrder = {
 	Return_To_Player = "R",
+	Toggle_Invincibility = "F",
+	Toggle_Walk_Mode = "Shift",
 }
 		
 local bindNames = {
 	Return_To_Player = "Return To Player",
+	Toggle_Invincibility = "Toggle Invincibility",
+	Toggle_Walk_Mode = "Toggle Walk Mode",
 	Open_Menu = "Open Menu",
 }
 

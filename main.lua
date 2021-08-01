@@ -31,7 +31,11 @@ local mouseXSensitivity = 0.1
 local mouseYSensitivity = 0.1
 
 local movementSpeed = 0.75
-local jumpStrength = 5
+
+local walkMovementSpeed = 0.25
+
+local invincibilityActive = false
+local walkModeActive = false
 
 function init()
 	saveFileInit()
@@ -44,7 +48,7 @@ end
 function tick(dt)
 	menu_tick(dt)
 	
-	if not isHoldingTool() and currentBody == nil then
+	if not isHoldingTool() and (currentBody == nil or currentBody == 0) then
 		return
 	end
 	
@@ -56,26 +60,44 @@ function tick(dt)
 		return
 	end
 	
-	if currentBody ~= nil then
-		if possessionLogic() then
-			ReturnToPlayer()
+	if InputPressed(binds["Toggle_Invincibility"]) then
+		invincibilityActive = not invincibilityActive
+	
+		if invincibilityActive then
+			SetTag(currentBody, "unbreakable", true)
 		else
-			movePlayerAway()
-			cameraLogic(dt)
+			RemoveTag(currentBody, "unbreakable")
+		end
+	end
+	
+	if currentBody == nil or currentBody == 0 then
+		aimLogic()
+		highlightLookAt()
 		
-			if InputPressed(binds["Return_To_Player"]) then
-				ReturnToPlayer()
-			end
+		if isFiringTool() then
+			takeOverLookAt()
 		end
 		
 		return
 	end
 	
-	aimLogic()
-	highlightLookAt()
+	if possessionLogic() then
+		ReturnToPlayer()
+	else
+		movePlayerAway()
+		cameraLogic(dt)
+		
+		if GetString("game.player.tool") ~= toolName then
+			SetString("game.player.tool", toolName)
+		end
 	
-	if isFiringTool() then
-		takeOverLookAt()
+		if InputPressed(binds["Return_To_Player"]) then
+			ReturnToPlayer()
+		end
+		
+		if InputPressed(binds["Toggle_Walk_Mode"]) then
+			walkModeActive = not walkModeActive
+		end
 	end
 end
 
@@ -88,16 +110,42 @@ end
 -- UI Functions (excludes sound specific functions)
 
 function drawUI(dt)
-	if currentBody == nil or currentBody == 0 then
+	if not isHoldingTool() and (currentBody == nil or currentBody == 0) then
 		return
 	end
 	
 	UiPush()
-		UiAlign("center bottom")
-		UiTranslate(UiWidth() * 0.5, UiHeight())
+		UiAlign("left bottom")
+		UiTranslate(UiWidth() * 0.01, UiHeight() * 0.99)
 		UiFont("regular.ttf", 26)
 		UiTextShadow(0, 0, 0, 0.5, 2.0)
-		UiText("Press [" .. binds["Return_To_Player"] .. "] to return to player.")
+		
+		if currentBody ~= nil and currentBody > 0 then
+			UiTranslate(30, 0)
+			UiText("[" .. binds["Return_To_Player"]:upper() .. "] to return to player.")
+			UiTranslate(-30, -25)
+			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
+		end
+		
+		UiTranslate(0, -25)
+		drawToggle("[" .. binds["Toggle_Invincibility"]:upper() .. "] to toggle invincibility.", invincibilityActive)
+		UiText()
+	UiPop()
+end
+
+function drawToggle(label, status)
+	UiPush()
+	UiTranslate(0, -2.5)
+	UiPush()
+		if status then
+			c_UiColor(Color4.Green)
+		else
+			c_UiColor(Color4.Red)
+		end
+		UiImageBox("ui/common/dot.png", 23, 23)
+	UiPop()
+	UiTranslate(30, 2.5)
+	UiText(label)
 	UiPop()
 end
 
@@ -244,6 +292,12 @@ function ReturnToPlayer()
 	
 	local hit, hitPoint = raycast(origin, direction, maxDistance)
 	
+	if invincibilityActive then
+		RemoveTag(currentBody, "unbreakable")
+	end
+	
+	walkModeActive = false
+	
 	if hit then
 		cameraTransform.pos = hitPoint
 	end
@@ -263,6 +317,10 @@ function takeOverLookAt()
 	
 	currentBody = currentLookAtBody
 	
+	if invincibilityActive then
+		SetTag(currentBody, "unbreakable", true)
+	end
+	
 	currentLookAtBody = nil
 	
 	cameraTransform = GetCameraTransform()
@@ -278,6 +336,8 @@ function possessionLogic()
 	if currentBody == nil or currentBody == 0 or GetBodyMass(currentBody) <= 0 then
 		return true
 	end
+	
+	-- Get all movement inputs
 	
 	local xMovement = 0
 	local yMovement = 0
@@ -299,40 +359,53 @@ function possessionLogic()
 		xMovement = xMovement + 1
 	end
 	
-	if InputPressed("jump") then
+	if InputDown("jump") then
 		yMovement = yMovement + 1
 	end
+	
+	-- If no input was given, no action is taken
 	
 	if xMovement == 0 and yMovement == 0 and zMovement == 0 then
 		return false
 	end
 	
-	local localMovementVec = Vec(xMovement, 0, zMovement)
+	-- Get Current movement speeds based on walk toggle
+	
+	local currentMovementSpeed = walkModeActive and walkMovementSpeed or movementSpeed
+	
+	-- Get all body related variables I need
 	
 	local currentBodyTransform = GetBodyTransform(currentBody)
-	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
+	local bodyMass = GetBodyMass(currentBody)
 	
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
 	
-	local tempLookAt = VecCopy(objectCenter)
+	-- Male a local movement vector to export from the straight looking transform.
 	
-	tempLookAt[2] = cameraTransform.pos[2]
+	local localMovementVec = Vec(xMovement, yMovement, zMovement)
 	
-	local tempTransform = Transform(cameraTransform.pos, QuatLookAt(cameraTransform.pos, tempLookAt))
+	-- Create a transform that is on the same level as the camera and no rotation to do
+	-- camera oriented movement.
+	
+	local tempStraightLookPosition = VecCopy(objectCenter)
+	tempStraightLookPosition[2] = cameraTransform.pos[2]
+	
+	local tempTransform = Transform(VecCopy(cameraTransform.pos), QuatLookAt(cameraTransform.pos, tempStraightLookPosition))
+	
+	-- Create the camera oriented movement vector
 	
 	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
 	
-	local direction = VecDir(cameraTransform.pos, cameraRelatedMovement)
+	-- And turn it into a direction vector
 	
-	local bodyMass = GetBodyMass(currentBody)
+	local movementDirection = VecDir(tempTransform.pos, cameraRelatedMovement)
 	
-	local movementVec = VecScale(direction, movementSpeed * bodyMass)
+	-- Scale according to speeds, and apply jump if jumping.
 	
-	movementVec = VecAdd(movementVec, Vec(0, yMovement * jumpStrength * bodyMass, 0))
+	local movementVec = VecScale(movementDirection, currentMovementSpeed * bodyMass)
 	
-	local objectMin, objectMax = GetBodyBounds(currentBody)
-	local objectCenter = VecLerp(objectMin, objectMax, 0.5)
+	-- And finally apply that force
 	
 	ApplyBodyImpulse(currentBody, objectCenter, movementVec)
 end
