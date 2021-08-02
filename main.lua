@@ -25,10 +25,13 @@ local lastObjectCenter = nil
 
 local cameraSpeed = 20
 local minCameraDistance = 0
+local currCameraDistance = 0
 local maxCameraDistance = 5
 
-local mouseXSensitivity = 0.1
-local mouseYSensitivity = 0.1
+local mouseXSensitivity = 10
+local mouseYSensitivity = 10
+
+local scrollSensitivity = 5
 
 local movementSpeed = 0.75
 
@@ -123,6 +126,8 @@ function drawUI(dt)
 		if currentBody ~= nil and currentBody > 0 then
 			UiTranslate(30, 0)
 			UiText("[" .. binds["Return_To_Player"]:upper() .. "] to return to player.")
+			UiTranslate(0, -25)
+			UiText("[Scroll] to zoom in and out.")
 			UiTranslate(-30, -25)
 			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
 		end
@@ -201,8 +206,16 @@ function cameraLogic(dt)
 	
 	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin))
 	
-	local xMovement = -InputValue("mousedx")
-	local yMovement = InputValue("mousedy")
+	local xMovement = -InputValue("camerax")
+	local yMovement = InputValue("cameray")
+	
+	local scroll = -InputValue("mousewheel")
+	
+	currCameraDistance = currCameraDistance + scroll * scrollSensitivity
+	
+	if currCameraDistance < 0 then
+		currCameraDistance = 0
+	end
 	
 	local minHeightDiff = 0
 	local maxHeightDiff = maxCameraDistance * 0.75
@@ -254,8 +267,8 @@ function cameraLogic(dt)
 		end
 	end]]--
 	
-	local minCamDist = minCameraDistance
-	local maxCamDist = maxCameraDistance + cameraExtraLength
+	local minCamDist = minCameraDistance + currCameraDistance
+	local maxCamDist = maxCameraDistance + cameraExtraLength + currCameraDistance
 	
 	if distanceToBody > maxCamDist  then
 		cameraPos = VecAdd(cameraPos, VecScale(directionToBody, distanceToBody - maxCamDist))
@@ -330,6 +343,8 @@ function takeOverLookAt()
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
 	
 	lastObjectCenter = objectCenter
+	
+	currCameraDistance = 0
 end
 
 function possessionLogic()
