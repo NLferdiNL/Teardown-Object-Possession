@@ -8,6 +8,9 @@
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
 
+-- TODO: Fix rotation lock causing some objects to go ham.
+--		 Only happens sometimes, not object specific?
+
 -- TODO: Make orbit camera, instead of chase.
 
 -- For those inspecting the code,
@@ -33,12 +36,17 @@ local mouseYSensitivity = 10
 
 local scrollSensitivity = 5
 
+local rotationSpeed = 50
+
 local movementSpeed = 0.75
 
 local walkMovementSpeed = 0.25
 
+local rotationLockEnforceStrength = 0.25
+
 local invincibilityActive = false
 local walkModeActive = false
+local lockedRotation = nil
 
 function init()
 	saveFileInit()
@@ -101,6 +109,16 @@ function tick(dt)
 		if InputPressed(binds["Toggle_Walk_Mode"]) then
 			walkModeActive = not walkModeActive
 		end
+		
+		if InputPressed(binds["Toggle_Rotation_Lock"]) then
+			if lockedRotation == nil and not (currentBody == nil and currentBody == 0) then
+				local currentBodyTransform = GetBodyTransform(currentBody)
+				
+				lockedRotation = QuatCopy(currentBodyTransform.rot)
+			else
+				lockedRotation = nil
+			end
+		end
 	end
 end
 
@@ -128,8 +146,12 @@ function drawUI(dt)
 			UiText("[" .. binds["Return_To_Player"]:upper() .. "] to return to player.")
 			UiTranslate(0, -25)
 			UiText("[Scroll] to zoom in and out.")
+			UiTranslate(0, -25)
+			UiText("[" .. binds["Rotate_Object"]:upper() .. "] to rotate the object")
 			UiTranslate(-30, -25)
 			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
+			UiTranslate(0, -25)
+		drawToggle("[" .. binds["Toggle_Rotation_Lock"]:upper() .. "] to toggle rotation lock.", lockedRotation ~= nil)
 		end
 		
 		UiTranslate(0, -25)
@@ -204,10 +226,15 @@ function cameraLogic(dt)
 	
 	local distanceToBody = VecDist(cameraPos, objectCenter)
 	
-	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin))
+	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin)) / 2
 	
 	local xMovement = -InputValue("camerax")
 	local yMovement = InputValue("cameray")
+	
+	if InputDown(binds["Rotate_Object"]) then
+		xMovement = 0
+		yMovement = 0
+	end
 	
 	local scroll = -InputValue("mousewheel")
 	
@@ -310,6 +337,7 @@ function ReturnToPlayer()
 	end
 	
 	walkModeActive = false
+	lockedRotation = nil
 	
 	if hit then
 		cameraTransform.pos = hitPoint
@@ -352,11 +380,21 @@ function possessionLogic()
 		return true
 	end
 	
+	
+	
 	-- Get all movement inputs
 	
 	local xMovement = 0
 	local yMovement = 0
 	local zMovement = 0
+	
+	local xRot = 0
+	local yRot = 0
+	
+	if InputDown(binds["Rotate_Object"]) then
+		xRot = InputValue("cameray")
+		yRot = -InputValue("camerax")
+	end
 	
 	if InputDown("up") then
 		zMovement = zMovement - 1
@@ -378,7 +416,28 @@ function possessionLogic()
 		yMovement = yMovement + 1
 	end
 	
+	-- Get the body transform early for rotation lock
+	
+	local currentBodyTransform = GetBodyTransform(currentBody)
+	
 	-- If no input was given, no action is taken
+	
+	if xRot ~=0 or yRot ~= 0 then
+		SetBodyAngularVelocity(currentBody, Vec(xRot * rotationSpeed, yRot * rotationSpeed, 0))
+	end
+	
+	-- Rotation lock currently disabled due to buggy behavior.
+	if lockedRotation ~= nil then
+		local cX, cY, cZ = GetQuatEuler(currentBodyTransform.rot)
+		
+		local tX, tY, tZ = GetQuatEuler(lockedRotation)
+		
+		local dX = (tX - cX) * rotationLockEnforceStrength
+		local dY = (tY - cY) * rotationLockEnforceStrength
+		local dZ = (tZ - cZ) * rotationLockEnforceStrength
+		
+		SetBodyAngularVelocity(currentBody, Vec(dX, dY, dZ))
+	end
 	
 	if xMovement == 0 and yMovement == 0 and zMovement == 0 then
 		return false
@@ -390,7 +449,8 @@ function possessionLogic()
 	
 	-- Get all body related variables I need
 	
-	local currentBodyTransform = GetBodyTransform(currentBody)
+	
+	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	local bodyMass = GetBodyMass(currentBody)
 	
@@ -423,6 +483,7 @@ function possessionLogic()
 	-- And finally apply that force
 	
 	ApplyBodyImpulse(currentBody, objectCenter, movementVec)
+	
 end
 
 function aimLogic()

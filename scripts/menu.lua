@@ -10,21 +10,29 @@ binds = {
 	Return_To_Player = "r",
 	Toggle_Invincibility = "c",
 	Toggle_Walk_Mode = "shift",
+	Toggle_Rotation_Lock = "z",
+	Rotate_Object = "rmb",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
 local bindBackup = deepcopy(binds)
 
 local bindOrder = {
-	Return_To_Player = "R",
-	Toggle_Invincibility = "F",
-	Toggle_Walk_Mode = "Shift",
+	"Return_To_Player",
+	"Toggle_Invincibility",
+	"Toggle_Walk_Mode",
+	"Toggle_Rotation_Lock",
+	"Rotate_Left",
+	"Rotate_Right",
 }
 		
 local bindNames = {
 	Return_To_Player = "Return To Player",
 	Toggle_Invincibility = "Toggle Invincibility",
 	Toggle_Walk_Mode = "Toggle Walk Mode",
+	Toggle_Rotation_Lock = "Toggle Rotation Lock",
+	Rotate_Left = "Rotate Left",
+	Rotate_Right = "Rotate Right",
 	Open_Menu = "Open Menu",
 }
 
