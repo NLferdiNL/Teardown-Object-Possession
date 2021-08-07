@@ -483,6 +483,15 @@ function possessionLogic()
 	
 	-- If no input was given, no action is taken
 	
+	-- Having some fun, serves no purpose.
+	--[[ParticleReset()
+	ParticleType("smoke")
+	ParticleColor(math.random(0, 10) / 10, math.random(0, 10) / 10, math.random(0, 10) / 10)
+	ParticleRadius(0.1)
+	ParticleEmissive(1)
+	ParticleCollide(0, 1)
+	SpawnParticle(currentBodyTransform.pos, Vec(0, 0, 0), 10)]]--
+	
 	if xRot ~=0 or yRot ~= 0 then
 		local currentRotateSpeed = walkModeActive and walkRotationSpeed or rotationSpeed
 		SetBodyAngularVelocity(currentBody, Vec(xRot * currentRotateSpeed, yRot * currentRotateSpeed, 0))
