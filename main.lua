@@ -40,8 +40,6 @@ local movementSpeed = 0.75
 
 local walkMovementSpeed = 0.25
 
-local rotationLockEnforceStrength = 0.25
-
 local invincibilityActive = false
 local walkModeActive = false
 local lockedRotation = nil
