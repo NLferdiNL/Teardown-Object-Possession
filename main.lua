@@ -8,9 +8,6 @@
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
 
--- TODO: Fix rotation lock causing some objects to go ham.
---		 Only happens sometimes, not object specific?
-
 -- TODO: Make orbit camera, instead of chase.
 
 -- For those inspecting the code,
@@ -37,6 +34,7 @@ local mouseYSensitivity = 10
 local scrollSensitivity = 5
 
 local rotationSpeed = 50
+local walkRotationSpeed = 15 
 
 local movementSpeed = 0.75
 
@@ -110,9 +108,39 @@ function tick(dt)
 			walkModeActive = not walkModeActive
 		end
 		
+		if InputPressed(binds["Explosive_Power_Up"]) and not IsBodyBroken(currentBody) then
+			local currVal = getExplosivePower()
+			
+			if currVal < 1 then
+				currVal = currVal + 0.1
+			elseif currVal < 4 then
+				currVal = currVal + 0.25
+			else
+				currVal = currVal + 1
+			end
+			
+			setExplosivePower(currVal)
+		end
+		
+		if InputPressed(binds["Explosive_Power_Down"]) and not IsBodyBroken(currentBody)  then
+			local currVal = getExplosivePower()
+			
+			if currVal <= 1 then
+				currVal = currVal - 0.1
+			elseif currVal <= 4 then
+				currVal = currVal - 0.25
+			else
+				currVal = currVal - 1
+			end
+			
+			setExplosivePower(currVal)
+		end
+		
 		if InputPressed(binds["Toggle_Rotation_Lock"]) then
 			if lockedRotation == nil and not (currentBody == nil and currentBody == 0) then
 				local currentBodyTransform = GetBodyTransform(currentBody)
+				
+				SetBodyAngularVelocity(currentBody, Vec(0, 0, 0))
 				
 				lockedRotation = QuatCopy(currentBodyTransform.rot)
 			else
@@ -147,11 +175,22 @@ function drawUI(dt)
 			UiTranslate(0, -25)
 			UiText("[Scroll] to zoom in and out.")
 			UiTranslate(0, -25)
-			UiText("[" .. binds["Rotate_Object"]:upper() .. "] to rotate the object")
+			UiText("[" .. binds["Rotate_Object"]:upper() .. "] to rotate the object.")
+			UiTranslate(0, -25)
+			UiText("[Jump / Crouch] to go up and down.")
 			UiTranslate(-30, -25)
+			if IsBodyBroken(currentBody) then
+				UiPush()
+					UiTranslate(30, 0)
+					UiText("Object broken: Cannot set to explosive.")
+				UiPop()
+			else
+				drawValue("[" .. binds["Explosive_Power_Up"]:upper() .. " / " .. binds["Explosive_Power_Down"]:upper() .. "] to change explosive power.", getExplosivePower())
+			end
+			UiTranslate(0, -25)
 			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
 			UiTranslate(0, -25)
-		drawToggle("[" .. binds["Toggle_Rotation_Lock"]:upper() .. "] to toggle rotation lock.", lockedRotation ~= nil)
+			drawToggle("[" .. binds["Toggle_Rotation_Lock"]:upper() .. "] to toggle rotation lock.", lockedRotation ~= nil)
 		end
 		
 		UiTranslate(0, -25)
@@ -162,17 +201,37 @@ end
 
 function drawToggle(label, status)
 	UiPush()
-	UiTranslate(0, -2.5)
-	UiPush()
-		if status then
-			c_UiColor(Color4.Green)
-		else
-			c_UiColor(Color4.Red)
-		end
-		UiImageBox("ui/common/dot.png", 23, 23)
+		UiTranslate(0, -2.5)
+		UiPush()
+			if status then
+				c_UiColor(Color4.Green)
+			else
+				c_UiColor(Color4.Red)
+			end
+			UiImageBox("ui/common/dot.png", 23, 23)
+		UiPop()
+		UiTranslate(30, 2.5)
+		UiText(label)
 	UiPop()
-	UiTranslate(30, 2.5)
-	UiText(label)
+end
+
+function drawValue(label, value)
+	UiPush()
+		UiFont("regular.ttf", 26)
+		UiTranslate(0, -2.5)
+		UiPush()
+			c_UiColor(Color4.Yellow)
+			local currentSize = UiGetTextSize(value)
+			local fontSize = 26
+			while currentSize > 30 do
+				fontSize = fontSize - 0.1
+				UiFont("regular.ttf", fontSize)
+				currentSize = UiGetTextSize(value)
+			end
+			UiText(value)
+		UiPop()
+		UiTranslate(30, 2.5)
+		UiText(label)
 	UiPop()
 end
 
@@ -380,8 +439,6 @@ function possessionLogic()
 		return true
 	end
 	
-	
-	
 	-- Get all movement inputs
 	
 	local xMovement = 0
@@ -416,6 +473,10 @@ function possessionLogic()
 		yMovement = yMovement + 1
 	end
 	
+	if InputDown("crouch") then
+		yMovement = yMovement - 1
+	end
+	
 	-- Get the body transform early for rotation lock
 	
 	local currentBodyTransform = GetBodyTransform(currentBody)
@@ -423,18 +484,30 @@ function possessionLogic()
 	-- If no input was given, no action is taken
 	
 	if xRot ~=0 or yRot ~= 0 then
-		SetBodyAngularVelocity(currentBody, Vec(xRot * rotationSpeed, yRot * rotationSpeed, 0))
+		local currentRotateSpeed = walkModeActive and walkRotationSpeed or rotationSpeed
+		SetBodyAngularVelocity(currentBody, Vec(xRot * currentRotateSpeed, yRot * currentRotateSpeed, 0))
 	end
 	
-	-- Rotation lock currently disabled due to buggy behavior.
 	if lockedRotation ~= nil then
-		local cX, cY, cZ = GetQuatEuler(currentBodyTransform.rot)
+		--[[local cX, cY, cZ = GetQuatEuler(currentBodyTransform.rot)
 		
 		local tX, tY, tZ = GetQuatEuler(lockedRotation)
 		
 		local dX = (tX - cX) * rotationLockEnforceStrength
 		local dY = (tY - cY) * rotationLockEnforceStrength
 		local dZ = (tZ - cZ) * rotationLockEnforceStrength
+		
+		DebugWatch("curr", Vec(cX, cY, cZ))
+		DebugWatch("target", Vec(tX, tY, tZ))
+		DebugWatch("dest", Vec(dX, dY, dZ))]]--
+		
+		local rot = QuatCopy(currentBodyTransform.rot)
+		
+		local inverseRot = Quat(-rot[1], -rot[2], -rot[3], rot[4])
+		
+		local distRot = QuatRotateQuat(lockedRotation, inverseRot)
+		
+		local dX, dY, dZ = GetQuatEuler(distRot)
 		
 		SetBodyAngularVelocity(currentBody, Vec(dX, dY, dZ))
 	end
@@ -483,7 +556,34 @@ function possessionLogic()
 	-- And finally apply that force
 	
 	ApplyBodyImpulse(currentBody, objectCenter, movementVec)
+end
+
+function getExplosivePower()
+	if currentBody == nil then
+		return nil
+	end
+
+	local value = GetTagValue(currentBody, "explosive")
 	
+	value = tonumber(value)
+	
+	if value == nil then
+		return 0
+	end
+	
+	return value
+end
+
+function setExplosivePower(value)
+	if currentBody == nil then
+		return
+	end
+	
+	if value <= 0 then
+		RemoveTag(currentBody, "explosive")
+	else
+		SetTag(currentBody, "explosive", value)
+	end
 end
 
 function aimLogic()

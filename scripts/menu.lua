@@ -12,6 +12,8 @@ binds = {
 	Toggle_Walk_Mode = "shift",
 	Toggle_Rotation_Lock = "z",
 	Rotate_Object = "rmb",
+	Explosive_Power_Up = "t",
+	Explosive_Power_Down = "g",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
