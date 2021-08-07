@@ -498,18 +498,6 @@ function possessionLogic()
 	end
 	
 	if lockedRotation ~= nil then
-		--[[local cX, cY, cZ = GetQuatEuler(currentBodyTransform.rot)
-		
-		local tX, tY, tZ = GetQuatEuler(lockedRotation)
-		
-		local dX = (tX - cX) * rotationLockEnforceStrength
-		local dY = (tY - cY) * rotationLockEnforceStrength
-		local dZ = (tZ - cZ) * rotationLockEnforceStrength
-		
-		DebugWatch("curr", Vec(cX, cY, cZ))
-		DebugWatch("target", Vec(tX, tY, tZ))
-		DebugWatch("dest", Vec(dX, dY, dZ))]]--
-		
 		local rot = QuatCopy(currentBodyTransform.rot)
 		
 		local inverseRot = Quat(-rot[1], -rot[2], -rot[3], rot[4])
