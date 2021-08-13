@@ -219,13 +219,8 @@ function drawValue(label, value)
 		UiTranslate(0, -2.5)
 		UiPush()
 			c_UiColor(Color4.Yellow)
-			local currentSize = UiGetTextSize(value)
-			local fontSize = 26
-			while currentSize > 30 do
-				fontSize = fontSize - 0.1
-				UiFont("regular.ttf", fontSize)
-				currentSize = UiGetTextSize(value)
-			end
+			local fontSize = getMaxTextSize(value, 26, 30)
+			UiFont("regular.ttf", fontSize)
 			UiText(value)
 		UiPop()
 		UiTranslate(30, 2.5)
