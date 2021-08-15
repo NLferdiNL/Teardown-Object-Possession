@@ -10,6 +10,8 @@ toolReadableName = "Object Possession"
 
 -- TODO: Make orbit camera, instead of chase.
 
+-- TODO: Use mass to make everything explodable instead of only prestine objects.
+
 -- For those inspecting the code,
 -- I am very sorry.
 
