@@ -46,6 +46,14 @@ local invincibilityActive = false
 local walkModeActive = false
 local lockedRotation = nil
 
+local explosiveBodyClass = {
+	active = false,
+	mass = nil,
+	power = 0,
+}
+
+local explosiveBodies = {}
+
 function init()
 	saveFileInit()
 	menu_init()
@@ -56,6 +64,7 @@ end
 
 function tick(dt)
 	menu_tick(dt)
+	handleExplosiveBodies()
 	
 	if not isHoldingTool() and (currentBody == nil or currentBody == 0) then
 		return
@@ -108,32 +117,36 @@ function tick(dt)
 			walkModeActive = not walkModeActive
 		end
 		
-		if InputPressed(binds["Explosive_Power_Up"]) and not IsBodyBroken(currentBody) then
-			local currVal = getExplosivePower()
+		if InputPressed(binds["Explosive_Power_Up"])then
+			local currVal = getExplosivePower(currentBody)
 			
-			if currVal < 1 then
-				currVal = currVal + 0.1
-			elseif currVal < 4 then
-				currVal = currVal + 0.25
+			if currVal < 0.5 then
+				currVal = 0.5
 			else
-				currVal = currVal + 1
+				currVal = currVal + 0.1
 			end
 			
-			setExplosivePower(currVal)
+			if currVal > 4 then
+				currVal = 4
+			end
+			
+			editExplosiveBody(currentBody, currVal)
 		end
 		
-		if InputPressed(binds["Explosive_Power_Down"]) and not IsBodyBroken(currentBody)  then
-			local currVal = getExplosivePower()
+		if InputPressed(binds["Explosive_Power_Down"]) then
+			local currVal = getExplosivePower(currentBody)
 			
-			if currVal <= 1 then
-				currVal = currVal - 0.1
-			elseif currVal <= 4 then
-				currVal = currVal - 0.25
+			if currVal <= 0.5 then
+				currVal = 0
 			else
-				currVal = currVal - 1
+				currVal = currVal - 0.1
 			end
 			
-			setExplosivePower(currVal)
+			if currVal < 0 then
+				currVal = 0
+			end
+			
+			editExplosiveBody(currentBody, currVal)
 		end
 		
 		if InputPressed(binds["Toggle_Rotation_Lock"]) then
@@ -179,14 +192,7 @@ function drawUI(dt)
 			UiTranslate(0, -25)
 			UiText("[Jump / Crouch] to go up and down.")
 			UiTranslate(-30, -25)
-			if IsBodyBroken(currentBody) then
-				UiPush()
-					UiTranslate(30, 0)
-					UiText("Object broken: Cannot set to explosive.")
-				UiPop()
-			else
-				drawValue("[" .. binds["Explosive_Power_Up"]:upper() .. " / " .. binds["Explosive_Power_Down"]:upper() .. "] to change explosive power.", getExplosivePower())
-			end
+			drawValue("[" .. binds["Explosive_Power_Up"]:upper() .. " / " .. binds["Explosive_Power_Down"]:upper() .. "] to change explosive power.", getExplosivePower(currentBody))
 			UiTranslate(0, -25)
 			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
 			UiTranslate(0, -25)
@@ -241,7 +247,43 @@ end
 
 -- Creation Functions
 
+function editExplosiveBody(bodyId, power)
+	if explosiveBodies[bodyId] ~= nil then
+		explosiveBodies[bodyId].power = power
+		return
+	end
+	
+	local newExplosiveBody = deepcopy(explosiveBodyClass)
+	
+	newExplosiveBody.power = power
+	newExplosiveBody.mass = GetBodyMass(bodyId)
+	
+	explosiveBodies[bodyId] = newExplosiveBody
+end
+
 -- Object handlers
+
+function handleExplosiveBodies()
+	for bodyId, settings in pairs(explosiveBodies) do
+		local bodyMass = GetBodyMass(bodyId)
+		
+		if bodyMass ~= settings.mass then
+			local currentBodyTransform = GetBodyTransform(bodyId)
+			local localExplosionPos = GetBodyCenterOfMass(bodyId)
+			local explosionPos = TransformToParentPoint(currentBodyTransform, localExplosionPos)
+			Explosion(explosionPos, settings.power)
+			explosiveBodies[bodyId] = nil
+		end
+	end
+end
+
+function getExplosivePower(bodyId)
+	if explosiveBodies[bodyId] == nil then
+		return 0
+	end
+	
+	return explosiveBodies[bodyId].power
+end
 
 -- Tool Functions
 
@@ -548,34 +590,6 @@ function possessionLogic()
 	-- And finally apply that force
 	
 	ApplyBodyImpulse(currentBody, objectCenter, movementVec)
-end
-
-function getExplosivePower()
-	if currentBody == nil then
-		return nil
-	end
-
-	local value = GetTagValue(currentBody, "explosive")
-	
-	value = tonumber(value)
-	
-	if value == nil then
-		return 0
-	end
-	
-	return value
-end
-
-function setExplosivePower(value)
-	if currentBody == nil then
-		return
-	end
-	
-	if value <= 0 then
-		RemoveTag(currentBody, "explosive")
-	else
-		SetTag(currentBody, "explosive", value)
-	end
 end
 
 function aimLogic()
