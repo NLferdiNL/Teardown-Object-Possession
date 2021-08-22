@@ -248,6 +248,10 @@ end
 -- Creation Functions
 
 function editExplosiveBody(bodyId, power)
+	if bodyId == nil then
+		return
+	end
+	
 	if explosiveBodies[bodyId] ~= nil then
 		explosiveBodies[bodyId].power = power
 		return
