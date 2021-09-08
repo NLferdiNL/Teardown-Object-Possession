@@ -1,4 +1,4 @@
 name = Object Possession
 author = NLferdiNL
-description = Become items on the map of any size.
+description = [noupload]Become items on the map of any size.
 tags = Tool

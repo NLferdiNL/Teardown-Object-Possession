@@ -47,3 +47,7 @@ function drawToggle(label, value, callback)
 		end
 	UiPop()
 end
+
+function c_DrawBodyOutline(handle, color4)
+	DrawBodyOutline(handle, color4.r, color4.g, color4.b, color4.a)
+end

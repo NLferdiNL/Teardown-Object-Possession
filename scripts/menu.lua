@@ -14,6 +14,7 @@ binds = {
 	Rotate_Object = "rmb",
 	Explosive_Power_Up = "t",
 	Explosive_Power_Down = "g",
+	Toggle_Void_Mode = "v",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
@@ -26,6 +27,7 @@ local bindOrder = {
 	"Toggle_Rotation_Lock",
 	"Rotate_Left",
 	"Rotate_Right",
+	"Toggle_Void_Mode",
 }
 		
 local bindNames = {
@@ -35,6 +37,7 @@ local bindNames = {
 	Toggle_Rotation_Lock = "Toggle Rotation Lock",
 	Rotate_Left = "Rotate Left",
 	Rotate_Right = "Rotate Right",
+	Toggle_Void_Mode = "Toggle Void Mode",
 	Open_Menu = "Open Menu",
 }
 

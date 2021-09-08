@@ -10,28 +10,26 @@ toolReadableName = "Object Possession"
 
 -- TODO: Make orbit camera, instead of chase.
 
--- TODO: Use mass to make everything explodable instead of only prestine objects.
-
 -- For those inspecting the code,
 -- I am very sorry.
 
 local currentBody = nil
 local currentLookAtBody = nil
-local currentShotCooldown = 0
 local maxShotCooldown = 0.5
 local cameraTransform = nil
 
 local maxPossessDistance = 15
-
-local lastObjectCenter = nil
 
 local cameraSpeed = 20
 local minCameraDistance = 0
 local currCameraDistance = 0
 local maxCameraDistance = 5
 
-local mouseXSensitivity = 10
-local mouseYSensitivity = 10
+local minHeightDiff = 0
+local maxHeightDiff = maxCameraDistance * 0.75
+
+local mouseXSensitivity = 20
+local mouseYSensitivity = 20
 
 local scrollSensitivity = 5
 
@@ -45,6 +43,19 @@ local walkMovementSpeed = 0.25
 local invincibilityActive = false
 local walkModeActive = false
 local lockedRotation = nil
+
+local voidModeActive = false
+local voidMovementSpeed = 10
+local voidStartRange = 10
+local voidStartStrength = 80
+local voidRange = 0
+local voidStrength = 0
+local voidStrengthPerMassGained = 0.15
+local voidPos = nil
+
+local playerStartTransform = nil
+
+local voidBodies = {}
 
 local explosiveBodyClass = {
 	active = false,
@@ -66,7 +77,7 @@ function tick(dt)
 	menu_tick(dt)
 	handleExplosiveBodies()
 	
-	if not isHoldingTool() and (currentBody == nil or currentBody == 0) then
+	if not isHoldingTool() and (currentBody == nil or currentBody == 0) and not voidModeActive then
 		return
 	end
 	
@@ -74,7 +85,38 @@ function tick(dt)
 		return
 	end
 	
-	if cooldownLogic(dt) then
+	if InputPressed(binds["Toggle_Void_Mode"]) and (currentBody == nil or currentBody == 0) then
+		voidModeActive = not voidModeActive
+		
+		if voidModeActive then
+			cameraTransform = TransformCopy(GetCameraTransform())
+			playerStartTransform = TransformCopy(GetPlayerTransform())
+			
+			minCameraDistance = 5
+		
+			voidStrength = voidStartStrength
+			voidRange = voidStartRange
+			voidPos = VecCopy(cameraTransform.pos)
+			
+			--minHeightDiff = maxCameraDistance
+			--maxHeightDiff = maxCameraDistance
+			voidBodies = {}
+		else
+			--minHeightDiff = 0
+			--maxHeightDiff = maxCameraDistance * 0.75
+			SetPlayerTransform(playerStartTransform)
+		end
+	end
+	
+	if voidModeActive then
+		voidLogic(dt)
+		cameraLogic(dt, voidPos, voidRange)
+		forceToolHeld()
+		movePlayerAway()
+		
+		if minCameraDistance > 0 then
+			minCameraDistance = 0
+		end
 		return
 	end
 	
@@ -102,12 +144,9 @@ function tick(dt)
 	if possessionLogic() then
 		ReturnToPlayer()
 	else
+		forceToolHeld()
 		movePlayerAway()
-		cameraLogic(dt)
-		
-		if GetString("game.player.tool") ~= toolName then
-			SetString("game.player.tool", toolName)
-		end
+		lookAtObject(dt)
 	
 		if InputPressed(binds["Return_To_Player"]) then
 			ReturnToPlayer()
@@ -201,6 +240,14 @@ function drawUI(dt)
 		
 		UiTranslate(0, -25)
 		drawToggle("[" .. binds["Toggle_Invincibility"]:upper() .. "] to toggle invincibility.", invincibilityActive)
+		if (currentBody == nil or currentBody == 0) then
+			UiTranslate(30, -25)
+			if voidModeActive then
+				UiText("[" .. binds["Toggle_Void_Mode"]:upper() .. "] to return to player.")
+			else
+				UiText("[" .. binds["Toggle_Void_Mode"]:upper() .. "] to enter the Void mode.")
+			end
+		end
 		UiText()
 	UiPop()
 end
@@ -234,15 +281,6 @@ function drawValue(label, value)
 		UiTranslate(30, 2.5)
 		UiText(label)
 	UiPop()
-end
-
-function cooldownLogic(dt)
-	if currentShotCooldown > 0 then
-		currentShotCooldown = currentShotCooldown - dt
-		return true
-	end
-	
-	return false
 end
 
 -- Creation Functions
@@ -302,16 +340,31 @@ function isFiringTool()
 	return isFiring and isHoldingIt
 end
 
+function forceToolHeld()
+	if GetString("game.player.tool") ~= toolName then
+		SetString("game.player.tool", toolName)
+	end
+end
+
 -- Particle Functions
+
+function setupVoidParticles()
+	ParticleReset()
+	ParticleColor(0, 0, 0)
+	ParticleRadius(0.25, 0.5)
+	ParticleAlpha(0.5)
+	ParticleGravity(0)
+	ParticleDrag(0)
+	ParticleCollide(1)
+end
 
 -- Action functions
 
-function cameraLogic(dt)
+function lookAtObject(dt)
 	if currentBody == nil or currentBody == 0 then
 		return
 	end
 	
-	local cameraPos = VecCopy(cameraTransform.pos)
 	local currentBodyTransform = GetBodyTransform(currentBody)
 	
 	local objectMin, objectMax = GetBodyBounds(currentBody)
@@ -319,14 +372,18 @@ function cameraLogic(dt)
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
+	
+	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin)) / 2
+	
+	cameraLogic(dt, objectCenter, cameraExtraLength)
+end
 
-	local objectCenterLerped = VecLerp(objectCenterRaised, lastObjectCenter, cameraSpeed * dt)
+function cameraLogic(dt, objectCenter, cameraExtraLength)
+	local cameraPos = VecCopy(cameraTransform.pos)
 	
 	local directionToBody = VecDir(cameraPos, objectCenter)
 	
 	local distanceToBody = VecDist(cameraPos, objectCenter)
-	
-	local cameraExtraLength = VecLength(VecSub(objectMax, objectMin)) / 2
 	
 	local xMovement = -InputValue("camerax")
 	local yMovement = InputValue("cameray")
@@ -343,9 +400,6 @@ function cameraLogic(dt)
 	if currCameraDistance < 0 then
 		currCameraDistance = 0
 	end
-	
-	local minHeightDiff = 0
-	local maxHeightDiff = maxCameraDistance * 0.75
 	
 	if cameraPos[2] < objectCenter[2] - minHeightDiff then
 		cameraPos[2] = objectCenter[2] - minHeightDiff
@@ -411,8 +465,70 @@ function cameraLogic(dt)
 	cameraTransform.rot = cameraRot
 	
 	SetCameraTransform(cameraTransform)
+end
+
+function voidMovement(dt)
+	local xMovement, yMovement, zMovement, xRot, yRot = getPlayerMovement()
 	
-	lastObjectCenter = objectCenter
+	if xMovement == 0 and yMovement == 0 and zMovement == 0 then
+		return
+	end
+	
+	local movementDir = getMovementDir(voidPos, xMovement, yMovement, zMovement)
+	
+	voidPos = VecAdd(voidPos, VecScale(movementDir, dt * voidMovementSpeed))
+end
+
+function voidLogic(dt)
+	setupVoidParticles()
+	SpawnParticle(voidPos, Vec(0,0,0), dt * 10)
+	
+	voidMovement(dt)
+	
+	QueryRequire("physical dynamic")
+	
+	local minPos = VecSub(voidPos, Vec(voidRange, voidRange, voidRange))
+	local maxPos = VecAdd(voidPos, Vec(voidRange, voidRange, voidRange))
+	
+	local nearbyBodies = QueryAabbBodies(minPos, maxPos)
+	
+	for i = 1, #nearbyBodies do
+		local body = nearbyBodies[i]
+		
+		local bodyMass = GetBodyMass(body)
+		
+		if bodyMass < voidStrength then
+			local bodyTransform = GetBodyTransform(body)
+			local dirToVoid = VecDir(bodyTransform.pos, voidPos)
+			local distToVoid = VecDist(voidPos, bodyTransform.pos)
+			
+			SetBodyVelocity(body, VecScale(dirToVoid, 25))
+			
+			if distToVoid < voidRange and voidBodies[body .. ""] == nil then
+				voidStrength = voidStrength + voidStrengthPerMassGained * bodyMass
+				voidBodies[body .. ""] = {}
+				voidBodies[body .. ""][1] = body
+				voidBodies[body .. ""][2] = bodyMass
+			end
+		end
+	end
+	
+	for bodyTag, bodyData in pairs(voidBodies) do
+		local bodyHandle = bodyData[1]
+		local oldBodyMass = bodyData[2]
+		
+		local bodyTransform = GetBodyTransform(bodyHandle)
+		local dirToVoid = VecDir(bodyTransform.pos, voidPos)
+		
+		if VecDist(voidPos, bodyTransform.pos) > voidRange then
+			voidBodies[bodyTag] = nil
+			voidStrength = voidStrength - voidStrengthPerMassGained * oldBodyMass
+		end
+		
+		if voidStrength < voidStartStrength then
+			voidStrength = voidStartStrength
+		end
+	end
 end
 
 function movePlayerAway()
@@ -469,19 +585,11 @@ function takeOverLookAt()
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
-	
-	lastObjectCenter = objectCenter
-	
+
 	currCameraDistance = 0
 end
 
-function possessionLogic()
-	if currentBody == nil or currentBody == 0 or GetBodyMass(currentBody) <= 0 then
-		return true
-	end
-	
-	-- Get all movement inputs
-	
+function getPlayerMovement()
 	local xMovement = 0
 	local yMovement = 0
 	local zMovement = 0
@@ -517,6 +625,40 @@ function possessionLogic()
 	if InputDown("crouch") then
 		yMovement = yMovement - 1
 	end
+	
+	return xMovement, yMovement, zMovement, xRot, yRot
+end
+
+function getMovementDir(objectCenter, xMovement, yMovement, zMovement)
+	local localMovementVec = Vec(xMovement, yMovement, zMovement)
+	
+	-- Create a transform that is on the same level as the camera and no rotation to do
+	-- camera oriented movement.
+	
+	local tempStraightLookPosition = VecCopy(objectCenter)
+	tempStraightLookPosition[2] = cameraTransform.pos[2]
+	
+	local tempTransform = Transform(VecCopy(cameraTransform.pos), QuatLookAt(cameraTransform.pos, tempStraightLookPosition))
+	
+	-- Create the camera oriented movement vector
+	
+	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
+	
+	-- And turn it into a direction vector
+	
+	local movementDirection = VecDir(tempTransform.pos, cameraRelatedMovement)
+	
+	return movementDirection
+end
+
+function possessionLogic()
+	if currentBody == nil or currentBody == 0 or GetBodyMass(currentBody) <= 0 then
+		return true
+	end
+	
+	-- Get all movement inputs
+	
+	local xMovement, yMovement, zMovement, xRot, yRot = getPlayerMovement()
 	
 	-- Get the body transform early for rotation lock
 	
@@ -560,32 +702,12 @@ function possessionLogic()
 	
 	-- Get all body related variables I need
 	
-	
-	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	local bodyMass = GetBodyMass(currentBody)
 	
 	local objectCenter = TransformToParentPoint(currentBodyTransform, localFocusPoint)
 	
-	-- Male a local movement vector to export from the straight looking transform.
-	
-	local localMovementVec = Vec(xMovement, yMovement, zMovement)
-	
-	-- Create a transform that is on the same level as the camera and no rotation to do
-	-- camera oriented movement.
-	
-	local tempStraightLookPosition = VecCopy(objectCenter)
-	tempStraightLookPosition[2] = cameraTransform.pos[2]
-	
-	local tempTransform = Transform(VecCopy(cameraTransform.pos), QuatLookAt(cameraTransform.pos, tempStraightLookPosition))
-	
-	-- Create the camera oriented movement vector
-	
-	local cameraRelatedMovement = TransformToParentPoint(tempTransform, localMovementVec)
-	
-	-- And turn it into a direction vector
-	
-	local movementDirection = VecDir(tempTransform.pos, cameraRelatedMovement)
+	local movementDirection = getMovementDir(objectCenter, xMovement, yMovement, zMovement)
 	
 	-- Scale according to speeds, and apply jump if jumping.
 	
