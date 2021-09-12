@@ -14,7 +14,7 @@ binds = {
 	Rotate_Object = "rmb",
 	Explosive_Power_Up = "t",
 	Explosive_Power_Down = "g",
-	Toggle_Void_Mode = "v",
+	Toggle_Void_Mode = "n",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
