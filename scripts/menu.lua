@@ -3,43 +3,7 @@
 #include "scripts/ui.lua"
 #include "scripts/textbox.lua"
 #include "scripts/utils.lua"
-
-local menuEnabled = false
-
-binds = {
-	Return_To_Player = "r",
-	Toggle_Invincibility = "c",
-	Toggle_Walk_Mode = "shift",
-	Toggle_Rotation_Lock = "z",
-	Rotate_Object = "rmb",
-	Explosive_Power_Up = "t",
-	Explosive_Power_Down = "g",
-	Toggle_Void_Mode = "n",
-	Open_Menu = "m", -- Only one that can't be changed!
-}
-
-local bindBackup = deepcopy(binds)
-
-local bindOrder = {
-	"Return_To_Player",
-	"Toggle_Invincibility",
-	"Toggle_Walk_Mode",
-	"Toggle_Rotation_Lock",
-	"Rotate_Left",
-	"Rotate_Right",
-	"Toggle_Void_Mode",
-}
-		
-local bindNames = {
-	Return_To_Player = "Return To Player",
-	Toggle_Invincibility = "Toggle Invincibility",
-	Toggle_Walk_Mode = "Toggle Walk Mode",
-	Toggle_Rotation_Lock = "Toggle Rotation Lock",
-	Rotate_Left = "Rotate Left",
-	Rotate_Right = "Rotate Right",
-	Toggle_Void_Mode = "Toggle Void Mode",
-	Open_Menu = "Open Menu",
-}
+#include "datascripts/keybinds.lua"
 
 local menuOpened = false
 local menuOpenLastFrame = false
@@ -49,14 +13,14 @@ local rebinding = nil
 local erasingBinds = 0
 
 local menuWidth = 0.3
-local menuHeight = 0.725
+local menuHeight = 0.4
 
 function menu_init()
 	
 end
 
 function menu_tick(dt)
-	if InputPressed(binds["Open_Menu"]) and GetString("game.player.tool") == toolName and menuEnabled then
+	if GetInputPressed("Open_Menu") and GetString("game.player.tool") == toolName and menuEnabled then
 		menuOpened = not menuOpened
 		
 		if not menuOpened then
@@ -112,7 +76,11 @@ function centralMenu()
 		
 		UiAlign("center middle")
 		UiTranslate(UiWidth() * 0.5, UiHeight() * 0.5)
-		UiImageBox("ui/hud/infobox.png", UiWidth() * menuWidth, UiHeight() * menuHeight, 10, 10)
+		
+		UiPush()
+			UiColorFilter(0, 0, 0, 0.25)
+			UiImageBox("MOD/sprites/square.png", UiWidth() * menuWidth, UiHeight() * menuHeight, 10, 10)
+		UiPop()
 		
 		UiWordWrap(UiWidth() * menuWidth)
 		
@@ -128,10 +96,10 @@ function centralMenu()
 		
 		setupTextBoxes()
 		
-		UiTranslate(0, UiHeight() * menuHeight * 0.9)
+		UiButtonImageBox("MOD/sprites/square.png", 0, 0, 0, 0, 0, 0.5)
 		
 		UiPush()
-			UiButtonImageBox("ui/common/box-outline-6.png", 6, 6)
+			UiTranslate(0, UiHeight() * menuHeight * 0.2)
 			
 			--[[if erasingBinds > 0 then
 				UiPush()
@@ -149,9 +117,26 @@ function centralMenu()
 			
 			UiTranslate(0, 50)]]--
 			
-			drawToggle("Incendiary Bullets: ", true, function (i) --[[incendiaryBullets = i]] end)
+			local voidButtonText = "Disabled"
 			
-			if UiTextButton("Close" , 400, 40) then
+			if voidModeAvailable then
+				voidButtonText = "Enabled"
+			end
+			
+			if UiTextButton("Enable Void Mode: " .. voidButtonText , 400, 40) then
+				voidModeAvailable = not voidModeAvailable
+			end
+			
+			UiTranslate(0, UiHeight() * menuHeight * 0.2)
+			UiText("Warning: Void mode is very unpolished and was\nonly ever tested on keyboard.\n\nMay not work with controller.")
+			
+			--drawToggle("Enable Void Mode: ", voidModeAvailable, function(i) voidModeAvailable = i end)
+			
+		UiPop()
+		UiPush()
+			UiTranslate(0, UiHeight() * menuHeight * 0.75)
+			
+			if UiTextButton("Close", 400, 40) then
 				menuCloseActions()
 			end
 		UiPop()
@@ -171,7 +156,7 @@ end
 
 function drawRebindable(id, key)
 	UiPush()
-		UiButtonImageBox("ui/common/box-outline-6.png", 6, 6)
+		UiButtonImageBox("MOD/sprites/square.png", 0, 0, 0, 0, 0, 0.5)
 	
 		UiTranslate(UiWidth() * menuWidth / 1.5, 0)
 	
@@ -207,6 +192,7 @@ end
 function menuCloseActions()
 	menuOpened = false
 	rebinding = nil
+	saveToFile();
 	--spread = tonumber(spreadTextBox.value)
 end
 

@@ -4,6 +4,7 @@
 #include "scripts/ui.lua"
 #include "scripts/menu.lua"
 #include "datascripts/inputList.lua"
+#include "datascripts/keybinds.lua"
 
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
@@ -12,6 +13,11 @@ toolReadableName = "Object Possession"
 
 -- For those inspecting the code,
 -- I am very sorry.
+
+menuEnabled = true
+
+debugEnabled = true
+local debugStarted = false
 
 local currentBody = nil
 local currentLookAtBody = nil
@@ -44,6 +50,7 @@ local invincibilityActive = false
 local walkModeActive = false
 local lockedRotation = nil
 
+voidModeAvailable = false
 local voidModeActive = false
 local voidMovementSpeed = 10
 local voidStartRange = 10
@@ -56,6 +63,8 @@ local voidPos = nil
 local playerStartTransform = nil
 
 local voidBodies = {}
+
+local controllerCrouchDown = false
 
 local explosiveBodyClass = {
 	active = false,
@@ -74,6 +83,11 @@ function init()
 end
 
 function tick(dt)
+	if not debugStarted and debugEnabled then
+		debugStarted = true
+		SetString("game.player.tool", toolName)
+	end
+		
 	menu_tick(dt)
 	handleExplosiveBodies()
 	
@@ -85,7 +99,7 @@ function tick(dt)
 		return
 	end
 	
-	if InputPressed(binds["Toggle_Void_Mode"]) and (currentBody == nil or currentBody == 0) then
+	if GetInputPressed("Toggle_Void_Mode") and (currentBody == nil or currentBody == 0) and voidModeAvailable then
 		voidModeActive = not voidModeActive
 		
 		if voidModeActive then
@@ -120,7 +134,7 @@ function tick(dt)
 		return
 	end
 	
-	if InputPressed(binds["Toggle_Invincibility"]) then
+	if GetInputPressed("Toggle_Invincibility") then
 		invincibilityActive = not invincibilityActive
 	
 		if invincibilityActive then
@@ -148,15 +162,15 @@ function tick(dt)
 		movePlayerAway()
 		lookAtObject(dt)
 	
-		if InputPressed(binds["Return_To_Player"]) then
+		if GetInputPressed("Return_To_Player") then
 			ReturnToPlayer()
 		end
 		
-		if InputPressed(binds["Toggle_Walk_Mode"]) then
+		if GetInputPressed("Toggle_Walk_Mode") then
 			walkModeActive = not walkModeActive
 		end
 		
-		if InputPressed(binds["Explosive_Power_Up"])then
+		if GetInputPressed("Explosive_Power_Up")then
 			local currVal = getExplosivePower(currentBody)
 			
 			if currVal < 0.5 then
@@ -172,7 +186,7 @@ function tick(dt)
 			editExplosiveBody(currentBody, currVal)
 		end
 		
-		if InputPressed(binds["Explosive_Power_Down"]) then
+		if GetInputPressed("Explosive_Power_Down") then
 			local currVal = getExplosivePower(currentBody)
 			
 			if currVal <= 0.5 then
@@ -188,7 +202,7 @@ function tick(dt)
 			editExplosiveBody(currentBody, currVal)
 		end
 		
-		if InputPressed(binds["Toggle_Rotation_Lock"]) then
+		if GetInputPressed("Toggle_Rotation_Lock") then
 			if lockedRotation == nil and not (currentBody == nil and currentBody == 0) then
 				local currentBodyTransform = GetBodyTransform(currentBody)
 				
@@ -223,29 +237,33 @@ function drawUI(dt)
 		
 		if currentBody ~= nil and currentBody > 0 then
 			UiTranslate(30, 0)
-			UiText("[" .. binds["Return_To_Player"]:upper() .. "] to return to player.")
+			UiText("[" .. GetBindButton("Return_To_Player"):upper() .. "] to return to player.")
 			UiTranslate(0, -25)
-			UiText("[Scroll] to zoom in and out.")
+			if GetInputMethod() == "MNK" then
+				UiText("[Scroll] to zoom in and out.")
+			else
+				UiText("[Switch tools] to zoom in and out.")
+			end
 			UiTranslate(0, -25)
-			UiText("[" .. binds["Rotate_Object"]:upper() .. "] to rotate the object.")
+			UiText("[" .. GetBindButton("Rotate_Object"):upper() .. "] to rotate the object.")
 			UiTranslate(0, -25)
 			UiText("[Jump / Crouch] to go up and down.")
 			UiTranslate(-30, -25)
-			drawValue("[" .. binds["Explosive_Power_Up"]:upper() .. " / " .. binds["Explosive_Power_Down"]:upper() .. "] to change explosive power.", getExplosivePower(currentBody))
+			drawValue("[" .. GetBindButton("Explosive_Power_Up"):upper() .. " / " .. GetBindButton("Explosive_Power_Down"):upper() .. "] to change explosive power.", getExplosivePower(currentBody))
 			UiTranslate(0, -25)
-			drawToggle("[" .. binds["Toggle_Walk_Mode"]:upper() .. "] to toggle walk speed.", walkModeActive)
+			drawToggle("[" .. GetBindButton("Toggle_Walk_Mode"):upper() .. "] to toggle walk speed.", walkModeActive)
 			UiTranslate(0, -25)
-			drawToggle("[" .. binds["Toggle_Rotation_Lock"]:upper() .. "] to toggle rotation lock.", lockedRotation ~= nil)
+			drawToggle("[" .. GetBindButton("Toggle_Rotation_Lock"):upper() .. "] to toggle rotation lock.", lockedRotation ~= nil)
 		end
 		
 		UiTranslate(0, -25)
-		drawToggle("[" .. binds["Toggle_Invincibility"]:upper() .. "] to toggle invincibility.", invincibilityActive)
-		if (currentBody == nil or currentBody == 0) then
+		drawToggle("[" .. GetBindButton("Toggle_Invincibility"):upper() .. "] to toggle invincibility.", invincibilityActive)
+		if ((currentBody == nil or currentBody == 0) and voidModeAvailable) then
 			UiTranslate(30, -25)
 			if voidModeActive then
-				UiText("[" .. binds["Toggle_Void_Mode"]:upper() .. "] to return to player.")
+				UiText("[" .. GetBindButton("Toggle_Void_Mode"):upper() .. "] to return to player.")
 			else
-				UiText("[" .. binds["Toggle_Void_Mode"]:upper() .. "] to enter the Void mode.")
+				UiText("[" .. GetBindButton("Toggle_Void_Mode"):upper() .. "] to enter the Void mode.")
 			end
 		end
 		UiText()
@@ -388,7 +406,7 @@ function cameraLogic(dt, objectCenter, cameraExtraLength)
 	local xMovement = -InputValue("camerax")
 	local yMovement = InputValue("cameray")
 	
-	if InputDown(binds["Rotate_Object"]) then
+	if GetInputDown("Rotate_Object") then
 		xMovement = 0
 		yMovement = 0
 	end
@@ -597,7 +615,7 @@ function getPlayerMovement()
 	local xRot = 0
 	local yRot = 0
 	
-	if InputDown(binds["Rotate_Object"]) then
+	if GetInputDown("Rotate_Object") then
 		xRot = InputValue("cameray")
 		yRot = -InputValue("camerax")
 	end
@@ -622,8 +640,22 @@ function getPlayerMovement()
 		yMovement = yMovement + 1
 	end
 	
-	if InputDown("crouch") then
-		yMovement = yMovement - 1
+	if GetInputMethod() == "MNK" then
+		if InputDown("crouch") then
+			yMovement = yMovement - 1
+		end
+	else
+		if InputPressed("crouch") then
+			controllerCrouchDown = true
+		end
+		
+		if InputReleased("crouch") then
+			controllerCrouchDown = false
+		end
+		
+		if controllerCrouchDown then
+			yMovement = yMovement - 1
+		end
 	end
 	
 	return xMovement, yMovement, zMovement, xRot, yRot

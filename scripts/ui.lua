@@ -40,7 +40,7 @@ function drawToggle(label, value, callback)
 	local disabledText = "Disabled"
 
 	UiPush()
-		UiButtonImageBox("ui/common/box-outline-6.png", 6, 6)
+		UiButtonImageBox("MOD/sprites/square.png", 0, 0, 0, 0, 0, 0.5)
 		
 		if UiTextButton(label .. (value and enabledText or disabledText), 400, 40) then
 			callback(not value)
