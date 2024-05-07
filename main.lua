@@ -16,7 +16,7 @@ toolReadableName = "Object Possession"
 
 menuEnabled = true
 
-debugEnabled = true
+debugEnabled = false
 local debugStarted = false
 
 local currentBody = nil
