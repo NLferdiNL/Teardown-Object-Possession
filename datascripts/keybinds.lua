@@ -1,3 +1,4 @@
+#version 2
 #include "scripts/utils.lua"
 
 binds = {
@@ -84,38 +85,44 @@ function GetBindName(id)
 	return bindNames[id]
 end
 
-function GetInputPressed(id)
+function GetInputPressed(id, pid)
+	pid = pid or 0
+	 
 	if binds[id] == nil then
 		return "UNKNOWN"
 	end
 	
 	if GetInputMethod() == "GAMEPAD" then
-		return InputPressed(controllerBinds[id])
+		return InputPressed(controllerBinds[id], pid)
 	else
-		return InputPressed(binds[id])
+		return InputPressed(binds[id], pid)
 	end
 end
 
-function GetInputReleased(id)
+function GetInputReleased(id, pid)
+	pid = pid or 0
+	
 	if binds[id] == nil then
 		return "UNKNOWN"
 	end
 	
 	if GetInputMethod() == "GAMEPAD" then
-		return InputReleased(controllerBinds[id])
+		return InputReleased(controllerBinds[id], pid)
 	else
-		return InputReleased(binds[id])
+		return InputReleased(binds[id], pid)
 	end
 end
 
-function GetInputDown(id)
+function GetInputDown(id, pid)
+	pid = pid or 0
+	
 	if binds[id] == nil then
 		return "UNKNOWN"
 	end
 	
 	if GetInputMethod() == "GAMEPAD" then
-		return InputDown(controllerBinds[id])
+		return InputDown(controllerBinds[id], pid)
 	else
-		return InputDown(binds[id])
+		return InputDown(binds[id], pid)
 	end
 end

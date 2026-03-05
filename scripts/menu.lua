@@ -1,3 +1,4 @@
+#version 2
 #include "datascripts/inputList.lua"
 #include "datascripts/color4.lua"
 #include "scripts/ui.lua"
@@ -192,7 +193,7 @@ end
 function menuCloseActions()
 	menuOpened = false
 	rebinding = nil
-	saveToFile();
+	saveToFile()
 	--spread = tonumber(spreadTextBox.value)
 end
 

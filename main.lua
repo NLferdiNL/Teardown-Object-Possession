@@ -1,3 +1,4 @@
+#version 2
 #include "datascripts/color4.lua"
 #include "scripts/utils.lua"
 #include "scripts/savedata.lua"
@@ -5,6 +6,8 @@
 #include "scripts/menu.lua"
 #include "datascripts/inputList.lua"
 #include "datascripts/keybinds.lua"
+#include "script/include/player.lua"
+#include "script/include/common.lua"
 
 toolName = "objectpossession"
 toolReadableName = "Object Possession"
@@ -74,22 +77,80 @@ local explosiveBodyClass = {
 
 local explosiveBodies = {}
 
-function init()
+local playersPossessing = {}
+
+function server.init()
 	saveFileInit()
 	menu_init()
 	
 	RegisterTool(toolName, toolReadableName, "MOD/vox/tool.vox")
-	SetBool("game.tool." .. toolName .. ".enabled", true)
+	--SetBool("game.tool." .. toolName .. ".enabled", true)
 end
 
-function tick(dt)
-	if not debugStarted and debugEnabled then
-		debugStarted = true
-		SetString("game.player.tool", toolName)
-	end
+function server.tick(dt)
+	for id in PlayersAdded() do
+		SetToolEnabled(toolName, true, id)
 		
+		if not debugStarted and debugEnabled then
+			debugStarted = true
+			SetPlayerTool(toolName, id)
+		end
+	end
+	
+	server.disablePossessingPlayers()
+	server.handleExplosiveBodies()
+end
+
+function server.disablePossessingPlayers()
+	for id in pairs(playersPossessing) do
+		--SetPlayerTransform(Transform(Vec(0, 1000, 0)), id)
+		SetPlayerHidden(id)
+		SetPlayerParam("godMode", true, id)
+		DisablePlayerInput(id)
+	end
+end
+
+function server.setTag(body, tag, value)
+	SetTag(body, tag, value)
+end
+
+function server.removeTag(body, tag)
+	RemoveTag(body, tag)
+end
+
+function client.handleToolBody(id)
+	if GetPlayerTool(id) ~= toolName then
+		return
+	end
+	
+	local toolRot = QuatEuler(-50, 0, 7)
+	local gunpos = Vec(0, -0.2, -0.3)
+	
+	if IsPlayerLocal(id) and not GetBool('game.thirdperson') then
+		gunpos = Vec(0, -0.4, -0.8)
+		toolRot = QuatEuler(-30, 0, 7)
+	elseif (IsPlayerLocal(id) and GetBool('game.thirdperson')) or not IsPlayerLocal(id) then
+		local rightHand = Transform(Vec(.075,-.2,-.1), QuatEuler(0, 135, 0))
+		local leftHand = Transform(Vec(-.075,-.2,-.1), QuatEuler(0, 45, 0))
+		SetToolHandPoseLocalTransform(rightHand, leftHand, id)
+		--SetToolHandPoseLocalTransform(Transform(Vec(0.2, -0.3, -0.3)), nil, id)
+	end
+	
+	
+	--SetToolOffset(gunpos, 1, id)
+	SetToolTransform(Transform(gunpos, toolRot), 1, id)
+	--SetToolHandPoseLocalTransform(Transform(Vec(0.1,0,-.4), QuatAxisAngle(Vec(0,1,0), 90.0)), nil)
+end
+
+function client.handleToolPositioning()
+	for id in Players() do
+		client.handleToolBody(id)
+	end
+end
+
+function client.tick(dt)
+	client.handleToolPositioning()
 	menu_tick(dt)
-	handleExplosiveBodies()
 	
 	if not isHoldingTool() and (currentBody == nil or currentBody == 0) and not voidModeActive then
 		return
@@ -99,7 +160,7 @@ function tick(dt)
 		return
 	end
 	
-	if GetInputPressed("Toggle_Void_Mode") and (currentBody == nil or currentBody == 0) and voidModeAvailable then
+	--[[if GetInputPressed("Toggle_Void_Mode") and (currentBody == nil or currentBody == 0) and voidModeAvailable then
 		voidModeActive = not voidModeActive
 		
 		if voidModeActive then
@@ -115,10 +176,12 @@ function tick(dt)
 			--minHeightDiff = maxCameraDistance
 			--maxHeightDiff = maxCameraDistance
 			voidBodies = {}
+			movePlayerAway()
 		else
 			--minHeightDiff = 0
 			--maxHeightDiff = maxCameraDistance * 0.75
-			SetPlayerTransform(playerStartTransform)
+			--SetPlayerTransform(playerStartTransform)
+			returnPlayer(playerStartTransform)
 		end
 	end
 	
@@ -126,21 +189,19 @@ function tick(dt)
 		voidLogic(dt)
 		cameraLogic(dt, voidPos, voidRange)
 		forceToolHeld()
-		movePlayerAway()
-		
 		if minCameraDistance > 0 then
 			minCameraDistance = 0
 		end
 		return
-	end
+	end]]--
 	
 	if GetInputPressed("Toggle_Invincibility") then
 		invincibilityActive = not invincibilityActive
 	
 		if invincibilityActive then
-			SetTag(currentBody, "unbreakable", true)
+			ServerCall("server.setTag", currentBody, "unbreakable", true)
 		else
-			RemoveTag(currentBody, "unbreakable")
+			ServerCall("server.removeTag", currentBody, "unbreakable")
 		end
 	end
 	
@@ -183,7 +244,7 @@ function tick(dt)
 				currVal = 4
 			end
 			
-			editExplosiveBody(currentBody, currVal)
+			ServerCall("server.editExplosiveBody", currentBody, currVal)
 		end
 		
 		if GetInputPressed("Explosive_Power_Down") then
@@ -199,14 +260,14 @@ function tick(dt)
 				currVal = 0
 			end
 			
-			editExplosiveBody(currentBody, currVal)
+			ServerCall("server.editExplosiveBody", currentBody, currVal)
 		end
 		
 		if GetInputPressed("Toggle_Rotation_Lock") then
 			if lockedRotation == nil and not (currentBody == nil and currentBody == 0) then
 				local currentBodyTransform = GetBodyTransform(currentBody)
 				
-				SetBodyAngularVelocity(currentBody, Vec(0, 0, 0))
+				ServerCall("server.setBodyAngularVelocity", currentBody, Vec(0, 0, 0))
 				
 				lockedRotation = QuatCopy(currentBodyTransform.rot)
 			else
@@ -216,7 +277,7 @@ function tick(dt)
 	end
 end
 
-function draw(dt)	
+function client.draw(dt)	
 	menu_draw(dt)
 
 	drawUI(dt)
@@ -303,13 +364,20 @@ end
 
 -- Creation Functions
 
-function editExplosiveBody(bodyId, power)
+function server.editExplosiveBody(bodyId, power)
 	if bodyId == nil then
+		return
+	end
+	
+	if power <= 0 then
+		SetTag(bodyId, "expPower")
+		explosiveBodies[bodyId] = nil
 		return
 	end
 	
 	if explosiveBodies[bodyId] ~= nil then
 		explosiveBodies[bodyId].power = power
+		SetTag(bodyId, "expPower", power)
 		return
 	end
 	
@@ -319,11 +387,12 @@ function editExplosiveBody(bodyId, power)
 	newExplosiveBody.mass = GetBodyMass(bodyId)
 	
 	explosiveBodies[bodyId] = newExplosiveBody
+	SetTag(bodyId, "expPower", power)
 end
 
 -- Object handlers
 
-function handleExplosiveBodies()
+function server.handleExplosiveBodies()
 	for bodyId, settings in pairs(explosiveBodies) do
 		local bodyMass = GetBodyMass(bodyId)
 		
@@ -333,16 +402,25 @@ function handleExplosiveBodies()
 			local explosionPos = TransformToParentPoint(currentBodyTransform, localExplosionPos)
 			Explosion(explosionPos, settings.power)
 			explosiveBodies[bodyId] = nil
+			RemoveTag(bodyId, "expPower")
 		end
 	end
 end
 
 function getExplosivePower(bodyId)
-	if explosiveBodies[bodyId] == nil then
+	--[[if explosiveBodies[bodyId] == nil then
 		return 0
+	end]]--
+	
+	local power = tonumber(GetTagValue(bodyId, "expPower"))
+	
+	if power == nil then
+		power = 0
 	end
 	
-	return explosiveBodies[bodyId].power
+	return power
+	
+	--return explosiveBodies[bodyId].power
 end
 
 -- Tool Functions
@@ -485,7 +563,7 @@ function cameraLogic(dt, objectCenter, cameraExtraLength)
 	SetCameraTransform(cameraTransform)
 end
 
-function voidMovement(dt)
+--[[function voidMovement(dt)
 	local xMovement, yMovement, zMovement, xRot, yRot = getPlayerMovement()
 	
 	if xMovement == 0 and yMovement == 0 and zMovement == 0 then
@@ -547,10 +625,33 @@ function voidLogic(dt)
 			voidStrength = voidStartStrength
 		end
 	end
+end]]--
+
+function server.movePlayerAway(id)
+	playersPossessing[id] = true
 end
 
 function movePlayerAway()
-	SetPlayerTransform(Transform(Vec(0, 1000, 0)))
+	ServerCall("server.movePlayerAway", GetLocalPlayer())
+end
+
+function server.returnPlayerBody(id)
+	table.remove(playersPossessing, id)
+	SetPlayerParam("godMode", false, id)
+end
+
+function server.returnPlayer(transform, id)
+	SetPlayerTransform(transform, id)
+	server.returnPlayerBody(id)
+end
+
+function returnPlayer(transform)
+	ServerCall("server.returnPlayer", transform, GetLocalPlayer())
+end
+
+function server.respawnPlayer(id)
+	RespawnPlayer(id)
+	server.returnPlayerBody(id)
 end
 
 function ReturnToPlayer()
@@ -567,7 +668,7 @@ function ReturnToPlayer()
 	local hit, hitPoint = raycast(origin, direction, maxDistance)
 	
 	if invincibilityActive then
-		RemoveTag(currentBody, "unbreakable")
+		ServerCall("server.removeTag", currentBody, "unbreakable")
 	end
 	
 	walkModeActive = false
@@ -577,9 +678,9 @@ function ReturnToPlayer()
 		cameraTransform.pos = hitPoint
 	end
 	if cameraTransform.pos[2] > 900 then
-		RespawnPlayer()
+		ServerCall("server.respawnPlayer", GetLocalPlayer())
 	else
-		SetPlayerTransform(cameraTransform)
+		returnPlayer(cameraTransform)
 	end
 	currentBody = nil
 	cameraTransform = nil
@@ -593,12 +694,12 @@ function takeOverLookAt()
 	currentBody = currentLookAtBody
 	
 	if invincibilityActive then
-		SetTag(currentBody, "unbreakable", true)
+		ServerCall("server.setTag", currentBody, "unbreakable", true)
 	end
 	
 	currentLookAtBody = nil
 	
-	cameraTransform = GetCameraTransform()
+	cameraTransform = GetCameraTransform(0)
 	
 	local localFocusPoint = GetBodyCenterOfMass(currentBody)
 	
@@ -683,6 +784,14 @@ function getMovementDir(objectCenter, xMovement, yMovement, zMovement)
 	return movementDirection
 end
 
+function server.applyBodyImpulse(body, origin, movement)
+	ApplyBodyImpulse(body, origin, movement)
+end
+
+function server.setBodyAngularVelocity(body, rot)
+	SetBodyAngularVelocity(body, rot)
+end
+
 function possessionLogic()
 	if currentBody == nil or currentBody == 0 or GetBodyMass(currentBody) <= 0 then
 		return true
@@ -709,7 +818,7 @@ function possessionLogic()
 	
 	if xRot ~=0 or yRot ~= 0 then
 		local currentRotateSpeed = walkModeActive and walkRotationSpeed or rotationSpeed
-		SetBodyAngularVelocity(currentBody, Vec(xRot * currentRotateSpeed, yRot * currentRotateSpeed, 0))
+		ServerCall("server.setBodyAngularVelocity", currentBody, Vec(xRot * currentRotateSpeed, yRot * currentRotateSpeed, 0))
 	end
 	
 	if lockedRotation ~= nil then
@@ -721,7 +830,7 @@ function possessionLogic()
 		
 		local dX, dY, dZ = GetQuatEuler(distRot)
 		
-		SetBodyAngularVelocity(currentBody, Vec(dX, dY, dZ))
+		ServerCall("server.setBodyAngularVelocity", currentBody, Vec(dX, dY, dZ))
 	end
 	
 	if xMovement == 0 and yMovement == 0 and zMovement == 0 then
@@ -747,7 +856,7 @@ function possessionLogic()
 	
 	-- And finally apply that force
 	
-	ApplyBodyImpulse(currentBody, objectCenter, movementVec)
+	ServerCall("server.applyBodyImpulse", currentBody, objectCenter, movementVec)
 end
 
 function aimLogic()

@@ -1,3 +1,4 @@
+#version 2
 local filteredKeys = { esc = "f", lmb = "f", mmb = "f", rmb = "f", space = "f", any = "f", m = "f" }
 
 function isFilteredKey(key)

@@ -1,3 +1,4 @@
+#version 2
 #include "scripts/utils.lua"
 
 textboxClass = {
@@ -84,21 +85,21 @@ end
 	end
 
 	if me.inputActive then
-		if InputPressed("lmb") then
+		if InputPressed("lmb", 0) then
 			textboxClass_setActiveState(me, textboxClass_checkMouseInRect(me))
-		elseif InputPressed("return") then
+		elseif InputPressed("return", 0) then
 			textboxClass_setActiveState(me, false)
-		elseif InputPressed("backspace") then
+		elseif InputPressed("backspace", 0) then
 			me.value = me.value:sub(1, #me.value - 1)
 		else
 			for j = 1, #textboxClass.inputNumbers do
-				if InputPressed(textboxClass.inputNumbers[j]) then
+				if InputPressed(textboxClass.inputNumbers[j], 0) then
 					me.value = me.value .. textboxClass.inputNumbers[j]
 				end
 			end
 			if not me.numbersOnly then
 				for j = 1, #textboxClass.inputLetters do
-					if InputPressed(textboxClass.inputLetters[j]) then
+					if InputPressed(textboxClass.inputLetters[j], 0) then
 						me.value = me.value .. textboxClass.inputLetters[j]
 					end
 				end
