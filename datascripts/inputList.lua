@@ -6,7 +6,7 @@ function isFilteredKey(key)
 end
 
 function getKeyPressed()
-	local pressedKey = InputLastPressedKey():lower()
+	local pressedKey = InputLastPressedKey(0):lower()
 	
 	if pressedKey == nil or pressedKey == "" then
 		return nil
