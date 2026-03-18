@@ -97,16 +97,37 @@ function server.tick(dt)
 		end
 	end
 	
-	server.disablePossessingPlayers()
+	server.disablePossessingPlayers(dt)
 	server.handleExplosiveBodies()
 end
 
-function server.disablePossessingPlayers()
-	for id in pairs(playersPossessing) do
-		--SetPlayerTransform(Transform(Vec(0, 1000, 0)), id)
-		SetPlayerHidden(id)
-		SetPlayerParam("godMode", true, id)
-		DisablePlayerInput(id)
+function server.possessionStatusUpdate(id, status)
+	if not status then
+		server.respawnPlayer(id)
+	end
+end
+
+function client.confirmPossess()
+	ServerCall("server.possessionStatusUpdate", GetLocalPlayer(), currentBody ~= nil and currentBody ~= 0)
+end
+
+function server.disablePossessingPlayers(dt)
+	for id, value in pairs(playersPossessing) do
+		if value ~= nil then
+			playersPossessing[id] = value + dt
+			
+			DebugPrint(value + dt)
+			
+			if playersPossessing[id] > .5 then
+				ClientCall(id, "client.confirmPossess")
+				playersPossessing[id] = 0
+			end
+			
+			--SetPlayerTransform(Transform(Vec(0, 1000, 0)), id)
+			SetPlayerHidden(id)
+			SetPlayerParam("godMode", true, id)
+			DisablePlayerInput(id)
+		end
 	end
 end
 
@@ -195,6 +216,10 @@ function client.tick(dt)
 		return
 	end]]--
 	
+	if GetInputPressed("Unstuck") then
+		ReturnToPlayer(true)
+	end
+	
 	if GetInputPressed("Toggle_Invincibility") then
 		invincibilityActive = not invincibilityActive
 	
@@ -220,7 +245,6 @@ function client.tick(dt)
 		ReturnToPlayer()
 	else
 		forceToolHeld()
-		movePlayerAway()
 		lookAtObject(dt)
 	
 		if GetInputPressed("Return_To_Player") then
@@ -319,6 +343,8 @@ function drawUI(dt)
 		
 		UiTranslate(0, -25)
 		drawToggle("[" .. GetBindButton("Toggle_Invincibility"):upper() .. "] to toggle invincibility.", invincibilityActive)
+		UiTranslate(0, -25)
+		UiText("[" .. GetBindButton("Unstuck"):upper() .. "] Emergency Unstuck")
 		if ((currentBody == nil or currentBody == 0) and voidModeAvailable) then
 			UiTranslate(30, -25)
 			if voidModeActive then
@@ -628,14 +654,15 @@ function voidLogic(dt)
 end]]--
 
 function server.movePlayerAway(id)
-	playersPossessing[id] = true
+	playersPossessing[id] = 0
 end
 
-function movePlayerAway()
+function client.movePlayerAway()
 	ServerCall("server.movePlayerAway", GetLocalPlayer())
 end
 
 function server.returnPlayerBody(id)
+	playersPossessing[id] = nil -- Extra unstuck precaution
 	table.remove(playersPossessing, id)
 	SetPlayerParam("godMode", false, id)
 end
@@ -654,21 +681,25 @@ function server.respawnPlayer(id)
 	server.returnPlayerBody(id)
 end
 
-function ReturnToPlayer()
-	local currentBodyTransform = GetBodyTransform(currentBody)
+function ReturnToPlayer(noBody)
+	noBody = noBody or false
 	
-	local origin = currentBodyTransform.pos
+	if not noBody then
+		local currentBodyTransform = GetBodyTransform(currentBody)
+		
+		local origin = currentBodyTransform.pos
 
-	local direction = VecDir(origin, cameraTransform.pos)
-	
-	local maxDistance =  VecDist(origin, cameraTransform.pos)
-	
-	QueryRejectBody(currentBody)
-	
-	local hit, hitPoint = raycast(origin, direction, maxDistance)
-	
-	if invincibilityActive then
-		ServerCall("server.removeTag", currentBody, "unbreakable")
+		local direction = VecDir(origin, cameraTransform.pos)
+		
+		local maxDistance =  VecDist(origin, cameraTransform.pos)
+		
+		QueryRejectBody(currentBody)
+		
+		local hit, hitPoint = raycast(origin, direction, maxDistance)
+		
+		if invincibilityActive then
+			ServerCall("server.removeTag", currentBody, "unbreakable")
+		end
 	end
 	
 	walkModeActive = false
@@ -676,12 +707,13 @@ function ReturnToPlayer()
 	
 	if hit then
 		cameraTransform.pos = hitPoint
-	end
-	if cameraTransform.pos[2] > 900 then
+	end	
+	if noBody or cameraTransform.pos[2] > 900 then
 		ServerCall("server.respawnPlayer", GetLocalPlayer())
 	else
 		returnPlayer(cameraTransform)
 	end
+	
 	currentBody = nil
 	cameraTransform = nil
 end
@@ -696,6 +728,8 @@ function takeOverLookAt()
 	if invincibilityActive then
 		ServerCall("server.setTag", currentBody, "unbreakable", true)
 	end
+	
+	client.movePlayerAway()
 	
 	currentLookAtBody = nil
 	

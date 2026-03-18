@@ -3,3 +3,4 @@ author = NLferdiNL
 description = [noupload]Become items on the map of any size.
 tags = Tool
 version = 2
+preview_image = preview.jpg

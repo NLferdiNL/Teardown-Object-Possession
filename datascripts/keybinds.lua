@@ -10,6 +10,7 @@ binds = {
 	Explosive_Power_Up = "t",
 	Explosive_Power_Down = "g",
 	Toggle_Void_Mode = "n",
+	Unstuck = "l",
 	Open_Menu = "m", -- Only one that can't be changed!
 }
 
@@ -22,6 +23,7 @@ controllerBinds = {
 	Explosive_Power_Up = "extra0",
 	Explosive_Power_Down = "extra1",
 	Toggle_Void_Mode = "n",
+	Unstuck = "extra4",
 	Open_Menu = "m", -- Won't even support this on controller. Menu only used to enable an old broken feature anyway.
 }
 
@@ -34,6 +36,7 @@ local bindOrder = {
 	"Toggle_Rotation_Lock",
 	"Rotate_Left",
 	"Rotate_Right",
+	"Unstuck",
 	"Toggle_Void_Mode",
 }
 		
@@ -45,6 +48,7 @@ local bindNames = {
 	Rotate_Left = "Rotate Left",
 	Rotate_Right = "Rotate Right",
 	Toggle_Void_Mode = "Toggle Void Mode",
+	Unstuck = "Unstuck",
 	Open_Menu = "Open Menu",
 }
 function resetKeybinds()
